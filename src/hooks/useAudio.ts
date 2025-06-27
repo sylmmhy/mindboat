@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import * Tone from 'tone';
+import * as Tone from 'tone';
 
 export const useAudio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
