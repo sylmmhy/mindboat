@@ -5,7 +5,6 @@ import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { useDestinationStore } from '../../stores/destinationStore';
-import { useVoyageStore } from '../../stores/voyageStore';
 import { useDistraction } from '../../hooks/useDistraction';
 import { useUserStore } from '../../stores/userStore';
 import type { Destination } from '../../types';
@@ -29,7 +28,6 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({
   const [isCreating, setIsCreating] = useState(false);
   
   const { destinations, createDestination, isLoading } = useDestinationStore();
-  const { startVoyage } = useVoyageStore();
   const { user } = useUserStore();
   const { requestPermissions, permissionsGranted } = useDistraction();
 
@@ -42,10 +40,10 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({
     await requestPermissions();
   };
 
-  const handleStartSailing = async () => {
-    if (!selectedDestination || !user) return;
+  const handleStartSailing = () => {
+    if (!selectedDestination) return;
     
-    await startVoyage(selectedDestination.id, user.id, plannedDuration);
+    // Call the parent's onStartVoyage function
     onStartVoyage(selectedDestination);
   };
 
@@ -128,7 +126,7 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({
               <div className="border-t pt-6">
                 <h3 className="text-lg font-medium mb-4">Sensor Permissions</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  To better detect distraction, we need the following permissions:
+                  To better detect distraction, we can use the following permissions:
                 </p>
                 
                 <div className="space-y-3">
@@ -158,9 +156,13 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({
                     className="w-full mt-4"
                     variant="outline"
                   >
-                    Request Permissions
+                    Request Permissions (Optional)
                   </Button>
                 )}
+                
+                <p className="text-xs text-gray-500 mt-2">
+                  Permissions are optional. Basic distraction detection works without them.
+                </p>
               </div>
             </div>
           </Card>

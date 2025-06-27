@@ -17,7 +17,7 @@ type AppState = 'auth' | 'lighthouse' | 'destinations' | 'voyage-prep' | 'sailin
 function App() {
   const { user, lighthouseGoal, initialize, isLoading } = useUserStore();
   const { destinations, loadDestinations } = useDestinationStore();
-  const { currentVoyage, voyageHistory } = useVoyageStore();
+  const { currentVoyage, voyageHistory, startVoyage, endVoyage } = useVoyageStore();
   const [appState, setAppState] = useState<AppState>('auth');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [completedVoyage, setCompletedVoyage] = useState<any>(null);
@@ -30,18 +30,20 @@ function App() {
     if (user) {
       loadDestinations(user.id);
       
-      // Determine app state based on user progress
+      // Determine app state based on user progress and current voyage
       if (!lighthouseGoal) {
         setAppState('lighthouse');
-      } else if (currentVoyage) {
+      } else if (currentVoyage && appState !== 'sailing') {
+        // If there's an active voyage and we're not already in sailing mode
         setAppState('sailing');
-      } else {
+      } else if (appState === 'auth') {
+        // Only set to voyage-prep if we're coming from auth
         setAppState('voyage-prep');
       }
     } else {
       setAppState('auth');
     }
-  }, [user, lighthouseGoal, destinations, currentVoyage, loadDestinations]);
+  }, [user, lighthouseGoal, currentVoyage]);
 
   if (isLoading) {
     return (
@@ -72,17 +74,30 @@ function App() {
     setAppState('voyage-prep');
   };
 
-  const handleStartVoyage = (destination: Destination) => {
+  const handleStartVoyage = async (destination: Destination) => {
+    if (!user) return;
+    
     setSelectedDestination(destination);
+    
+    // Start the voyage in the store
+    await startVoyage(destination.id, user.id, 25); // Default 25 minutes
+    
+    // Transition to sailing mode
     setAppState('sailing');
   };
 
-  const handleEndVoyage = () => {
+  const handleEndVoyage = async () => {
     if (currentVoyage && selectedDestination) {
+      // End the voyage in the store
+      await endVoyage();
+      
+      // Set completed voyage data for the completion screen
       setCompletedVoyage({
         ...currentVoyage,
         destination: selectedDestination
       });
+      
+      // Transition to voyage complete screen
       setAppState('voyage-complete');
     }
   };
