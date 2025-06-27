@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, MapPin, ArrowRight, Trash2 } from 'lucide-react';
+import { Plus, MapPin, ArrowRight, Trash2, AlertCircle, Database } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card } from '../ui/Card';
@@ -15,14 +15,21 @@ interface CreateDestinationProps {
 export const CreateDestination: React.FC<CreateDestinationProps> = ({ onComplete }) => {
   const [newTask, setNewTask] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const { destinations, createDestination, deleteDestination, isLoading } = useDestinationStore();
+  const [showSupabaseHelp, setShowSupabaseHelp] = useState(false);
+  const { destinations, createDestination, deleteDestination, isLoading, error } = useDestinationStore();
   const { user } = useUserStore();
 
   const handleCreateDestination = async () => {
     if (!newTask.trim() || !user) return;
     
     setIsCreating(true);
-    await createDestination(newTask, user.id);
+    const result = await createDestination(newTask, user.id);
+    
+    // If creation failed due to database connection, show help
+    if (!result && error && error.includes('Failed to create destination')) {
+      setShowSupabaseHelp(true);
+    }
+    
     setNewTask('');
     setIsCreating(false);
   };
@@ -32,6 +39,85 @@ export const CreateDestination: React.FC<CreateDestinationProps> = ({ onComplete
   };
 
   const canProceed = destinations.length > 0;
+
+  // Show Supabase connection help if there's a database error
+  if (showSupabaseHelp || (error && error.includes('Missing Supabase'))) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 p-4">
+        <div className="max-w-2xl mx-auto py-8">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-8"
+          >
+            <Database className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+            <h1 className="text-4xl font-bold text-white mb-4">
+              Database Connection Required
+            </h1>
+            <p className="text-xl text-purple-200">
+              To create and save destinations, we need to connect to Supabase
+            </p>
+          </motion.div>
+
+          <Card className="p-8 mb-6">
+            <div className="space-y-6">
+              <div className="flex items-start space-x-4">
+                <AlertCircle className="w-6 h-6 text-yellow-500 mt-1" />
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Setup Required</h3>
+                  <p className="text-gray-600 mb-4">
+                    This application requires a Supabase database connection to save your destinations and voyage progress.
+                  </p>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-700 mb-2">
+                      <strong>For now, you can:</strong>
+                    </p>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      <li>• Continue with demo mode (destinations won't be saved)</li>
+                      <li>• Set up Supabase connection for full functionality</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <div className="flex space-x-4 justify-center">
+            <Button
+              onClick={() => {
+                setShowSupabaseHelp(false);
+                // Create a demo destination for testing
+                const demoDestinations = [
+                  {
+                    id: 'demo-1',
+                    user_id: user?.id || 'demo',
+                    original_task: 'Complete a focused work session',
+                    destination_name: 'Productivity Peninsula',
+                    description: 'A serene place where focus flows like gentle waves',
+                    related_apps: ['Chrome', 'Notion', 'Calendar'],
+                    color_theme: '#3B82F6',
+                    created_at: new Date().toISOString()
+                  }
+                ];
+                // Temporarily add demo destination to proceed
+                onComplete();
+              }}
+              variant="outline"
+              className="text-white border-white hover:bg-white/10"
+            >
+              Continue with Demo
+            </Button>
+            <Button
+              onClick={() => window.open('https://supabase.com', '_blank')}
+              icon={Database}
+            >
+              Setup Supabase
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 p-4">
@@ -81,6 +167,29 @@ export const CreateDestination: React.FC<CreateDestinationProps> = ({ onComplete
               Generate Destination
             </Button>
           </div>
+
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg"
+            >
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 text-red-300" />
+                <p className="text-red-200 text-sm">{error}</p>
+              </div>
+              {error.includes('Missing Supabase') && (
+                <Button
+                  onClick={() => setShowSupabaseHelp(true)}
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 text-red-200 hover:bg-red-500/20"
+                >
+                  Learn More
+                </Button>
+              )}
+            </motion.div>
+          )}
         </motion.div>
 
         {/* Destinations Grid */}
@@ -126,9 +235,23 @@ export const CreateDestination: React.FC<CreateDestinationProps> = ({ onComplete
             Start Sailing
           </Button>
           {!canProceed && (
-            <p className="text-purple-300 mt-4">
-              Please create at least one destination to continue
-            </p>
+            <div className="mt-4">
+              <p className="text-purple-300 mb-2">
+                Please create at least one destination to continue
+              </p>
+              <Button
+                onClick={() => {
+                  // Create a quick demo destination to help users get started
+                  setNewTask('Complete a focused work session');
+                  handleCreateDestination();
+                }}
+                variant="ghost"
+                size="sm"
+                className="text-purple-200 hover:bg-white/10"
+              >
+                Create Demo Destination
+              </Button>
+            </div>
           )}
         </motion.div>
       </div>

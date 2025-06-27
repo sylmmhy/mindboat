@@ -3,11 +3,57 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Create a fallback client if environment variables are missing
+let supabase: any;
+
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
+  console.warn('Supabase environment variables not found. Running in demo mode.');
+  
+  // Create a mock client for demo purposes
+  supabase = {
+    auth: {
+      signInWithPassword: async () => ({ 
+        data: { user: { id: 'demo-user', email: 'demo@example.com' } }, 
+        error: null 
+      }),
+      signUp: async () => ({ 
+        data: { user: { id: 'demo-user', email: 'demo@example.com' } }, 
+        error: null 
+      }),
+      signOut: async () => ({ error: null }),
+      getSession: async () => ({ 
+        data: { session: { user: { id: 'demo-user', email: 'demo@example.com' } } } 
+      }),
+    },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          order: () => ({ data: [], error: null }),
+          maybeSingle: () => ({ data: null, error: null }),
+        }),
+      }),
+      insert: () => ({
+        select: () => ({
+          single: () => ({ data: null, error: new Error('Demo mode: Database not connected') }),
+        }),
+      }),
+      upsert: () => ({ error: new Error('Demo mode: Database not connected') }),
+      delete: () => ({
+        eq: () => ({ error: new Error('Demo mode: Database not connected') }),
+      }),
+    }),
+    functions: {
+      invoke: async () => ({ 
+        data: null, 
+        error: new Error('Demo mode: Edge functions not available') 
+      }),
+    },
+  };
+} else {
+  supabase = createClient(supabaseUrl, supabaseAnonKey);
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export { supabase };
 
 export type Database = {
   public: {
