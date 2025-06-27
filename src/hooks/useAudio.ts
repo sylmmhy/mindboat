@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import * as Tone from 'tone';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import * Tone from 'tone';
 
 export const useAudio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -52,7 +52,7 @@ export const useAudio = () => {
     };
   }, []);
 
-  const startAmbientSound = async () => {
+  const startAmbientSound = useCallback(async () => {
     try {
       await Tone.start();
       if (noiseRef.current) {
@@ -62,25 +62,25 @@ export const useAudio = () => {
     } catch (error) {
       console.warn('Failed to start ambient sound:', error);
     }
-  };
+  }, []);
 
-  const stopAmbientSound = () => {
+  const stopAmbientSound = useCallback(() => {
     if (noiseRef.current) {
       noiseRef.current.stop();
       setIsPlaying(false);
     }
-  };
+  }, []);
 
-  const adjustVolume = (newVolume: number) => {
+  const adjustVolume = useCallback((newVolume: number) => {
     setVolume(newVolume);
     if (volumeRef.current) {
       // Convert 0-1 range to decibels
       const db = newVolume === 0 ? -Infinity : -40 + (newVolume * 20);
       volumeRef.current.volume.value = db;
     }
-  };
+  }, []);
 
-  const setWeatherMood = (mood: 'sunny' | 'cloudy' | 'rainy' | 'stormy') => {
+  const setWeatherMood = useCallback((mood: 'sunny' | 'cloudy' | 'rainy' | 'stormy') => {
     if (!filterRef.current || !volumeRef.current) return;
 
     switch (mood) {
@@ -101,7 +101,7 @@ export const useAudio = () => {
         volumeRef.current.volume.rampTo(-10, 1);
         break;
     }
-  };
+  }, []);
 
   return {
     isPlaying,
