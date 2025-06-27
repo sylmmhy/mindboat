@@ -32,10 +32,8 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const { 
     isDistracted, 
     isMonitoring, 
-    startMonitoring, 
-    stopMonitoring, 
     handleDistractionResponse 
-  } = useDistraction();
+  } = useDistraction({ isExploring });
   const { 
     isPlaying, 
     volume, 
@@ -50,11 +48,8 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const trail = useRef<Array<{ x: number; y: number; timestamp: number }>>([]);
   const seagullTimerRef = useRef<NodeJS.Timeout>();
 
-  // Start monitoring and audio when component mounts
+  // Start audio and show initial notification when component mounts
   useEffect(() => {
-    if (!isExploring) {
-      startMonitoring();
-    }
     startAmbientSound();
     
     // Show seagull after 5 minutes for first-time interaction
@@ -70,13 +65,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     );
     
     return () => {
-      stopMonitoring();
       stopAmbientSound();
       if (seagullTimerRef.current) {
         clearTimeout(seagullTimerRef.current);
       }
     };
-  }, [startMonitoring, stopMonitoring, startAmbientSound, stopAmbientSound, isExploring, showInfo]);
+  }, [startAmbientSound, stopAmbientSound, showInfo]);
 
   // Timer effect
   useEffect(() => {
@@ -105,7 +99,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     };
   }, [currentVoyage, showSuccess]);
 
-  // Distraction alert effect - Fixed to prevent infinite re-renders
+  // Distraction alert effect
   useEffect(() => {
     if (isDistracted && !isExploring) {
       setShowDistractionAlert(true);
@@ -162,7 +156,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     
     if (choice === 'exploring') {
       setIsExploring(true);
-      stopMonitoring();
       if (weatherMood !== 'cloudy') {
         setWeatherMood('cloudy');
         setAudioWeatherMood('cloudy');
@@ -174,6 +167,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         { duration: 3000 }
       );
     } else {
+      setIsExploring(false);
       showSuccess(
         'Back on course! Keep up the great focus.',
         'Course Corrected',
@@ -184,7 +178,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
   const handleReturnToCourse = () => {
     setIsExploring(false);
-    startMonitoring();
     if (weatherMood !== 'sunny') {
       setWeatherMood('sunny');
       setAudioWeatherMood('sunny');

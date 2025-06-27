@@ -2,20 +2,22 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useVoyageStore } from '../stores/voyageStore';
 import type { DistractionDetectionEvent, PermissionState } from '../types';
 
-export const useDistraction = () => {
+interface UseDistractionProps {
+  isExploring?: boolean;
+}
+
+export const useDistraction = ({ isExploring = false }: UseDistractionProps = {}) => {
   const [isDistracted, setIsDistracted] = useState(false);
   const [permissionsGranted, setPermissionsGranted] = useState<PermissionState>({
     camera: false,
     microphone: false,
     screen: false
   });
-  const [isMonitoring, setIsMonitoring] = useState(false);
   const [lastDistractionType, setLastDistractionType] = useState<'tab_switch' | 'idle' | 'camera_distraction'>('tab_switch');
   
   // Refs to track current state values without causing re-renders
   const isDistractedRef = useRef(isDistracted);
   const lastDistractionTypeRef = useRef(lastDistractionType);
-  const isMonitoringRef = useRef(isMonitoring);
   
   const distractionTimeoutRef = useRef<NodeJS.Timeout>();
   const distractionStartTime = useRef<number>();
@@ -23,6 +25,9 @@ export const useDistraction = () => {
   const lastActivityTime = useRef<number>(Date.now());
   
   const { isVoyageActive, recordDistraction } = useVoyageStore();
+  
+  // Determine if monitoring should be active
+  const shouldMonitor = isVoyageActive && !isExploring;
   
   // Update refs when state changes
   useEffect(() => {
@@ -32,14 +37,10 @@ export const useDistraction = () => {
   useEffect(() => {
     lastDistractionTypeRef.current = lastDistractionType;
   }, [lastDistractionType]);
-  
-  useEffect(() => {
-    isMonitoringRef.current = isMonitoring;
-  }, [isMonitoring]);
 
   // Stable callback functions that don't change on every render
   const handleVisibilityChange = useCallback(() => {
-    if (!isMonitoringRef.current) return;
+    if (!shouldMonitor) return;
     
     if (document.hidden) {
       distractionStartTime.current = Date.now();
@@ -74,10 +75,10 @@ export const useDistraction = () => {
       distractionStartTime.current = undefined;
       lastActivityTime.current = Date.now();
     }
-  }, [recordDistraction]);
+  }, [shouldMonitor, recordDistraction]);
 
   const handleActivity = useCallback(() => {
-    if (!isMonitoringRef.current) return;
+    if (!shouldMonitor) return;
     
     lastActivityTime.current = Date.now();
     
@@ -113,11 +114,24 @@ export const useDistraction = () => {
         });
       }
     }, 120000); // 2 minute idle threshold
-  }, [recordDistraction]);
+  }, [shouldMonitor, recordDistraction]);
 
   // Enhanced distraction detection with multiple methods
   useEffect(() => {
-    if (!isVoyageActive || !isMonitoring) return;
+    if (!shouldMonitor) {
+      // Clear any active distractions when monitoring stops
+      setIsDistracted(false);
+      if (distractionTimeoutRef.current) {
+        clearTimeout(distractionTimeoutRef.current);
+      }
+      if (idleTimeoutRef.current) {
+        clearTimeout(idleTimeoutRef.current);
+      }
+      return;
+    }
+    
+    // Initialize activity tracking
+    lastActivityTime.current = Date.now();
     
     // Event listeners
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -125,6 +139,20 @@ export const useDistraction = () => {
     document.addEventListener('keydown', handleActivity);
     document.addEventListener('click', handleActivity);
     document.addEventListener('scroll', handleActivity);
+    
+    // Initialize idle detection
+    idleTimeoutRef.current = setTimeout(() => {
+      const timeSinceActivity = Date.now() - lastActivityTime.current;
+      if (timeSinceActivity >= 120000 && !isDistractedRef.current) { // 2 minutes of inactivity
+        setIsDistracted(true);
+        setLastDistractionType('idle');
+        distractionStartTime.current = Date.now() - timeSinceActivity;
+        recordDistraction({
+          type: 'idle',
+          timestamp: distractionStartTime.current,
+        });
+      }
+    }, 120000); // 2 minute idle threshold
     
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -140,7 +168,7 @@ export const useDistraction = () => {
         clearTimeout(idleTimeoutRef.current);
       }
     };
-  }, [isVoyageActive, isMonitoring, handleVisibilityChange, handleActivity]);
+  }, [shouldMonitor, handleVisibilityChange, handleActivity, recordDistraction]);
 
   const requestPermissions = useCallback(async () => {
     try {
@@ -172,41 +200,6 @@ export const useDistraction = () => {
     }
   }, []);
 
-  const startMonitoring = useCallback(() => {
-    setIsMonitoring(true);
-    lastActivityTime.current = Date.now();
-    
-    // Initialize idle detection when monitoring starts
-    if (idleTimeoutRef.current) {
-      clearTimeout(idleTimeoutRef.current);
-    }
-    
-    idleTimeoutRef.current = setTimeout(() => {
-      const timeSinceActivity = Date.now() - lastActivityTime.current;
-      if (timeSinceActivity >= 120000 && !isDistractedRef.current) { // 2 minutes of inactivity
-        setIsDistracted(true);
-        setLastDistractionType('idle');
-        distractionStartTime.current = Date.now() - timeSinceActivity;
-        recordDistraction({
-          type: 'idle',
-          timestamp: distractionStartTime.current,
-        });
-      }
-    }, 120000); // 2 minute idle threshold
-  }, [recordDistraction]);
-
-  const stopMonitoring = useCallback(() => {
-    setIsMonitoring(false);
-    setIsDistracted(false);
-    
-    if (distractionTimeoutRef.current) {
-      clearTimeout(distractionTimeoutRef.current);
-    }
-    if (idleTimeoutRef.current) {
-      clearTimeout(idleTimeoutRef.current);
-    }
-  }, []);
-
   const handleDistractionResponse = useCallback(async (response: 'return_to_course' | 'exploring') => {
     if (response === 'return_to_course') {
       setIsDistracted(false);
@@ -228,11 +221,9 @@ export const useDistraction = () => {
   return {
     isDistracted,
     permissionsGranted,
-    isMonitoring,
+    isMonitoring: shouldMonitor,
     lastDistractionType,
     requestPermissions,
-    startMonitoring,
-    stopMonitoring,
     handleDistractionResponse,
   };
 };
