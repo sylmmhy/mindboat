@@ -12,6 +12,11 @@ export const useDistraction = () => {
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [lastDistractionType, setLastDistractionType] = useState<'tab_switch' | 'idle' | 'camera_distraction'>('tab_switch');
   
+  // Refs to track current state values without causing re-renders
+  const isDistractedRef = useRef(isDistracted);
+  const lastDistractionTypeRef = useRef(lastDistractionType);
+  const isMonitoringRef = useRef(isMonitoring);
+  
   const distractionTimeoutRef = useRef<NodeJS.Timeout>();
   const distractionStartTime = useRef<number>();
   const idleTimeoutRef = useRef<NodeJS.Timeout>();
@@ -19,81 +24,101 @@ export const useDistraction = () => {
   
   const { isVoyageActive, recordDistraction } = useVoyageStore();
   
-  // Enhanced distraction detection with multiple methods
+  // Update refs when state changes
   useEffect(() => {
-    if (!isVoyageActive || !isMonitoring) return;
+    isDistractedRef.current = isDistracted;
+  }, [isDistracted]);
+  
+  useEffect(() => {
+    lastDistractionTypeRef.current = lastDistractionType;
+  }, [lastDistractionType]);
+  
+  useEffect(() => {
+    isMonitoringRef.current = isMonitoring;
+  }, [isMonitoring]);
+
+  // Stable callback functions that don't change on every render
+  const handleVisibilityChange = useCallback(() => {
+    if (!isMonitoringRef.current) return;
     
-    // Page Visibility API - Tab switching detection
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        distractionStartTime.current = Date.now();
-        setLastDistractionType('tab_switch');
-        
-        distractionTimeoutRef.current = setTimeout(() => {
+    if (document.hidden) {
+      distractionStartTime.current = Date.now();
+      setLastDistractionType('tab_switch');
+      
+      distractionTimeoutRef.current = setTimeout(() => {
+        if (!isDistractedRef.current) {
           setIsDistracted(true);
           recordDistraction({
             type: 'tab_switch',
             timestamp: distractionStartTime.current!,
           });
-        }, 10000); // 10 second threshold for tab switching
-      } else {
-        if (distractionTimeoutRef.current) {
-          clearTimeout(distractionTimeoutRef.current);
         }
-        
-        if (isDistracted && distractionStartTime.current) {
-          const duration = Math.floor((Date.now() - distractionStartTime.current) / 1000);
-          recordDistraction({
-            type: 'tab_switch',
-            timestamp: distractionStartTime.current,
-            duration,
-          });
-        }
-        
-        setIsDistracted(false);
-        distractionStartTime.current = undefined;
-        lastActivityTime.current = Date.now();
+      }, 10000); // 10 second threshold for tab switching
+    } else {
+      if (distractionTimeoutRef.current) {
+        clearTimeout(distractionTimeoutRef.current);
       }
-    };
-
-    // Mouse and keyboard activity detection for idle detection
-    const handleActivity = () => {
+      
+      if (isDistractedRef.current && distractionStartTime.current) {
+        const duration = Math.floor((Date.now() - distractionStartTime.current) / 1000);
+        recordDistraction({
+          type: 'tab_switch',
+          timestamp: distractionStartTime.current,
+          duration,
+        });
+      }
+      
+      if (isDistractedRef.current) {
+        setIsDistracted(false);
+      }
+      distractionStartTime.current = undefined;
       lastActivityTime.current = Date.now();
-      
-      // Clear idle timeout if user becomes active
-      if (idleTimeoutRef.current) {
-        clearTimeout(idleTimeoutRef.current);
-      }
-      
-      // If user was idle and becomes active, clear distraction
-      if (isDistracted && lastDistractionType === 'idle') {
-        setIsDistracted(false);
-        if (distractionStartTime.current) {
-          const duration = Math.floor((Date.now() - distractionStartTime.current) / 1000);
-          recordDistraction({
-            type: 'idle',
-            timestamp: distractionStartTime.current,
-            duration,
-          });
-          distractionStartTime.current = undefined;
-        }
-      }
-      
-      // Set new idle timeout
-      idleTimeoutRef.current = setTimeout(() => {
-        const timeSinceActivity = Date.now() - lastActivityTime.current;
-        if (timeSinceActivity >= 120000) { // 2 minutes of inactivity
-          setIsDistracted(true);
-          setLastDistractionType('idle');
-          distractionStartTime.current = Date.now() - timeSinceActivity;
-          recordDistraction({
-            type: 'idle',
-            timestamp: distractionStartTime.current,
-          });
-        }
-      }, 120000); // 2 minute idle threshold
-    };
+    }
+  }, [recordDistraction]);
 
+  const handleActivity = useCallback(() => {
+    if (!isMonitoringRef.current) return;
+    
+    lastActivityTime.current = Date.now();
+    
+    // Clear idle timeout if user becomes active
+    if (idleTimeoutRef.current) {
+      clearTimeout(idleTimeoutRef.current);
+    }
+    
+    // If user was idle and becomes active, clear distraction
+    if (isDistractedRef.current && lastDistractionTypeRef.current === 'idle') {
+      setIsDistracted(false);
+      if (distractionStartTime.current) {
+        const duration = Math.floor((Date.now() - distractionStartTime.current) / 1000);
+        recordDistraction({
+          type: 'idle',
+          timestamp: distractionStartTime.current,
+          duration,
+        });
+        distractionStartTime.current = undefined;
+      }
+    }
+    
+    // Set new idle timeout
+    idleTimeoutRef.current = setTimeout(() => {
+      const timeSinceActivity = Date.now() - lastActivityTime.current;
+      if (timeSinceActivity >= 120000 && !isDistractedRef.current) { // 2 minutes of inactivity
+        setIsDistracted(true);
+        setLastDistractionType('idle');
+        distractionStartTime.current = Date.now() - timeSinceActivity;
+        recordDistraction({
+          type: 'idle',
+          timestamp: distractionStartTime.current,
+        });
+      }
+    }, 120000); // 2 minute idle threshold
+  }, [recordDistraction]);
+
+  // Enhanced distraction detection with multiple methods
+  useEffect(() => {
+    if (!isVoyageActive || !isMonitoring) return;
+    
     // Event listeners
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('mousemove', handleActivity);
@@ -115,7 +140,7 @@ export const useDistraction = () => {
         clearTimeout(idleTimeoutRef.current);
       }
     };
-  }, [isVoyageActive, isMonitoring, isDistracted, lastDistractionType, recordDistraction]);
+  }, [isVoyageActive, isMonitoring, handleVisibilityChange, handleActivity]);
 
   const requestPermissions = useCallback(async () => {
     try {
@@ -158,7 +183,7 @@ export const useDistraction = () => {
     
     idleTimeoutRef.current = setTimeout(() => {
       const timeSinceActivity = Date.now() - lastActivityTime.current;
-      if (timeSinceActivity >= 120000) { // 2 minutes of inactivity
+      if (timeSinceActivity >= 120000 && !isDistractedRef.current) { // 2 minutes of inactivity
         setIsDistracted(true);
         setLastDistractionType('idle');
         distractionStartTime.current = Date.now() - timeSinceActivity;
@@ -192,13 +217,13 @@ export const useDistraction = () => {
     if (distractionStartTime.current) {
       const duration = Math.floor((Date.now() - distractionStartTime.current) / 1000);
       await recordDistraction({
-        type: lastDistractionType,
+        type: lastDistractionTypeRef.current,
         timestamp: distractionStartTime.current,
         duration,
       });
       distractionStartTime.current = undefined;
     }
-  }, [recordDistraction, lastDistractionType]);
+  }, [recordDistraction]);
 
   return {
     isDistracted,
