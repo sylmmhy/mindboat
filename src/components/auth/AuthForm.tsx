@@ -14,7 +14,6 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showDemoOption, setShowDemoOption] = useState(false);
   
   const { 
     signIn, 
@@ -85,7 +84,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
           <p className="text-blue-200">Begin your focused sailing journey</p>
         </div>
 
-        {/* Database Status Warning */}
+        {/* Database Status Info */}
         {!isSupabaseConfigured && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -97,10 +96,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
                 <Database className="w-5 h-5 text-yellow-600" />
                 <div>
                   <p className="text-sm font-medium text-yellow-800">
-                    Database Not Connected
+                    Demo Mode Available
                   </p>
                   <p className="text-xs text-yellow-700">
-                    Running in demo mode. Data won't be saved.
+                    Database not configured. You can try the app in demo mode.
                   </p>
                 </div>
               </div>
@@ -115,88 +114,63 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
           transition={{ delay: 0.6 }}
           className="bg-white/10 backdrop-blur-lg rounded-2xl p-8"
         >
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <Input
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(value) => {
-                setEmail(value);
-                clearError();
-              }}
-              placeholder="your@email.com"
-              required
-              disabled={isLoading}
-            />
-            
-            <Input
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(value) => {
-                setPassword(value);
-                clearError();
-              }}
-              placeholder="••••••••"
-              required
-              disabled={isLoading}
-            />
+          {isSupabaseConfigured ? (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <Input
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(value) => {
+                  setEmail(value);
+                  clearError();
+                }}
+                placeholder="your@email.com"
+                required
+                disabled={isLoading}
+              />
+              
+              <Input
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(value) => {
+                  setPassword(value);
+                  clearError();
+                }}
+                placeholder="••••••••"
+                required
+                disabled={isLoading}
+              />
 
-            <AnimatePresence>
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="bg-red-500/20 border border-red-500/50 rounded-lg p-4"
-                >
-                  <div className="flex items-start space-x-3">
-                    <AlertCircle className="w-5 h-5 text-red-300 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-red-200 text-sm">{error}</p>
-                      
-                      {error.includes('Database connection not configured') && (
-                        <div className="mt-3 space-y-2">
-                          <Button
-                            type="button"
-                            onClick={() => setShowDemoOption(true)}
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-200 hover:bg-red-500/20 p-2"
-                          >
-                            Continue in Demo Mode
-                          </Button>
-                          <Button
-                            type="button"
-                            onClick={() => window.open('https://supabase.com', '_blank')}
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-200 hover:bg-red-500/20 p-2 ml-2"
-                            icon={Database}
-                          >
-                            Setup Database
-                          </Button>
-                        </div>
-                      )}
+              <AnimatePresence>
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="bg-red-500/20 border border-red-500/50 rounded-lg p-4"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <AlertCircle className="w-5 h-5 text-red-300 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-red-200 text-sm">{error}</p>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            <div className="space-y-3">
-              <Button
-                type="submit"
-                loading={isLoading}
-                className="w-full"
-                size="lg"
-                disabled={!email.trim() || !password.trim()}
-              >
-                {isSignUp ? 'Create Account' : 'Sign In'}
-              </Button>
+              <div className="space-y-3">
+                <Button
+                  type="submit"
+                  loading={isLoading}
+                  className="w-full"
+                  size="lg"
+                  disabled={!email.trim() || !password.trim()}
+                >
+                  {isSignUp ? 'Create Account' : 'Sign In'}
+                </Button>
 
-              {/* Demo Mode Option */}
-              {(!isSupabaseConfigured || showDemoOption) && (
                 <Button
                   type="button"
                   onClick={handleDemoMode}
@@ -207,24 +181,60 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
                 >
                   Try Demo Mode
                 </Button>
-              )}
-            </div>
-          </form>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-6 text-center">
+              <div className="space-y-4">
+                <Database className="w-16 h-16 text-blue-300 mx-auto" />
+                <div>
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    Database Not Connected
+                  </h3>
+                  <p className="text-blue-200 text-sm mb-4">
+                    Supabase environment variables are not configured. You can still experience the app in demo mode.
+                  </p>
+                </div>
+              </div>
 
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                clearError();
-                setShowDemoOption(false);
-              }}
-              className="text-blue-300 hover:text-blue-200 transition-colors"
-              disabled={isLoading}
-            >
-              {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
-            </button>
-          </div>
+              <div className="space-y-3">
+                <Button
+                  onClick={handleDemoMode}
+                  className="w-full"
+                  size="lg"
+                  icon={Play}
+                >
+                  Start Demo Mode
+                </Button>
+                
+                <Button
+                  onClick={() => window.open('https://supabase.com', '_blank')}
+                  variant="outline"
+                  className="w-full text-white border-white hover:bg-white/10"
+                  size="lg"
+                  icon={Database}
+                >
+                  Setup Database
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {isSupabaseConfigured && (
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignUp(!isSignUp);
+                  clearError();
+                }}
+                className="text-blue-300 hover:text-blue-200 transition-colors"
+                disabled={isLoading}
+              >
+                {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+              </button>
+            </div>
+          )}
 
           {/* Help Text */}
           <div className="mt-6 text-center">

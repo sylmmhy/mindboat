@@ -23,13 +23,19 @@ interface UserState {
   enterDemoMode: () => void;
 }
 
+// Check if Supabase is configured
+const isSupabaseConfigured = !!(
+  import.meta.env.VITE_SUPABASE_URL && 
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+
 export const useUserStore = create<UserState>((set, get) => ({
   user: null,
   lighthouseGoal: '',
   isLoading: false,
   error: null,
   isAuthenticated: false,
-  authMode: 'supabase',
+  authMode: isSupabaseConfigured ? 'supabase' : 'demo',
 
   setUser: (user) => set({ user, isAuthenticated: !!user }),
   
@@ -65,7 +71,7 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
-      if (authMode === 'demo') {
+      if (authMode === 'demo' || !isSupabaseConfigured) {
         // In demo mode, just store locally
         localStorage.setItem('demo-lighthouse-goal', lighthouseGoal);
         set({ isLoading: false });
@@ -109,9 +115,11 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
-      // Check if we have Supabase environment variables
-      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-        throw new Error('SUPABASE_NOT_CONFIGURED');
+      // If Supabase is not configured, automatically enter demo mode
+      if (!isSupabaseConfigured) {
+        console.warn('Supabase not configured, entering demo mode');
+        get().enterDemoMode();
+        return;
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -159,14 +167,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       console.error('Sign in error:', error);
       
       if (error instanceof Error) {
-        if (error.message === 'SUPABASE_NOT_CONFIGURED') {
-          set({ 
-            error: 'Database connection not configured. You can continue in demo mode or set up Supabase for full functionality.',
-            authMode: 'demo'
-          });
-        } else {
-          set({ error: error.message });
-        }
+        set({ error: error.message });
       } else {
         set({ error: 'An unexpected error occurred during sign in. Please try again.' });
       }
@@ -179,9 +180,11 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
-      // Check if we have Supabase environment variables
-      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-        throw new Error('SUPABASE_NOT_CONFIGURED');
+      // If Supabase is not configured, automatically enter demo mode
+      if (!isSupabaseConfigured) {
+        console.warn('Supabase not configured, entering demo mode');
+        get().enterDemoMode();
+        return;
       }
 
       // Validate email format
@@ -233,14 +236,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       console.error('Sign up error:', error);
       
       if (error instanceof Error) {
-        if (error.message === 'SUPABASE_NOT_CONFIGURED') {
-          set({ 
-            error: 'Database connection not configured. You can continue in demo mode or set up Supabase for full functionality.',
-            authMode: 'demo'
-          });
-        } else {
-          set({ error: error.message });
-        }
+        set({ error: error.message });
       } else {
         set({ error: 'An unexpected error occurred during sign up. Please try again.' });
       }
@@ -255,7 +251,7 @@ export const useUserStore = create<UserState>((set, get) => ({
     try {
       const { authMode } = get();
       
-      if (authMode === 'supabase') {
+      if (authMode === 'supabase' && isSupabaseConfigured) {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
       }
@@ -267,7 +263,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         user: null, 
         lighthouseGoal: '', 
         isAuthenticated: false,
-        authMode: 'supabase'
+        authMode: isSupabaseConfigured ? 'supabase' : 'demo'
       });
 
       useNotificationStore.getState().showSuccess(
@@ -281,7 +277,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         user: null, 
         lighthouseGoal: '', 
         isAuthenticated: false,
-        authMode: 'supabase',
+        authMode: isSupabaseConfigured ? 'supabase' : 'demo',
         error: 'Sign out completed locally. You may need to clear your browser cache.'
       });
 
@@ -298,9 +294,13 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
-      // Check if we have Supabase environment variables
-      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      // If Supabase is not configured, set demo mode and load local data
+      if (!isSupabaseConfigured) {
         console.warn('Supabase not configured, running in demo mode');
+        const demoGoal = localStorage.getItem('demo-lighthouse-goal');
+        if (demoGoal) {
+          set({ lighthouseGoal: demoGoal });
+        }
         set({ isLoading: false, authMode: 'demo' });
         return;
       }
