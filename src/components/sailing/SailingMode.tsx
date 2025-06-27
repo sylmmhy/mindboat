@@ -1,8 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Anchor, Volume2, VolumeX, Settings, AlertTriangle, ArrowLeft, Compass } from 'lucide-react';
+import { Anchor, Volume2, VolumeX, Settings, AlertTriangle, ArrowLeft, Compass, MessageCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { DistractionAlert } from './DistractionAlert';
+import { ExplorationMode } from './ExplorationMode';
+import { SeagullCompanion } from './SeagullCompanion';
+import { WeatherSystem } from './WeatherSystem';
 import { useVoyageStore } from '../../stores/voyageStore';
 import { useDistraction } from '../../hooks/useDistraction';
 import { useAudio } from '../../hooks/useAudio';
@@ -18,6 +22,9 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const [showControls, setShowControls] = useState(false);
   const [weatherMood, setWeatherMood] = useState<'sunny' | 'cloudy' | 'rainy' | 'stormy'>('sunny');
   const [showDistractionAlert, setShowDistractionAlert] = useState(false);
+  const [isExploring, setIsExploring] = useState(false);
+  const [showSeagull, setShowSeagull] = useState(false);
+  const [inspirationNotes, setInspirationNotes] = useState<Array<{content: string, type: 'text' | 'voice', timestamp: number}>>([]);
   
   const { currentVoyage, distractionCount, endVoyage } = useVoyageStore();
   const { 
@@ -39,17 +46,28 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const intervalRef = useRef<NodeJS.Timeout>();
   const boatPosition = useRef({ x: 50, y: 50 });
   const trail = useRef<Array<{ x: number; y: number; timestamp: number }>>([]);
+  const seagullTimerRef = useRef<NodeJS.Timeout>();
 
   // Start monitoring and audio when component mounts
   useEffect(() => {
-    startMonitoring();
+    if (!isExploring) {
+      startMonitoring();
+    }
     startAmbientSound();
+    
+    // Show seagull after 5 minutes for first-time interaction
+    seagullTimerRef.current = setTimeout(() => {
+      setShowSeagull(true);
+    }, 300000); // 5 minutes
     
     return () => {
       stopMonitoring();
       stopAmbientSound();
+      if (seagullTimerRef.current) {
+        clearTimeout(seagullTimerRef.current);
+      }
     };
-  }, [startMonitoring, stopMonitoring, startAmbientSound, stopAmbientSound]);
+  }, [startMonitoring, stopMonitoring, startAmbientSound, stopAmbientSound, isExploring]);
 
   // Timer effect
   useEffect(() => {
@@ -70,21 +88,21 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
   // Distraction alert effect
   useEffect(() => {
-    if (isDistracted) {
+    if (isDistracted && !isExploring) {
       setShowDistractionAlert(true);
       setWeatherMood('stormy');
       setAudioWeatherMood('stormy');
-    } else {
+    } else if (!isExploring) {
       setShowDistractionAlert(false);
       setWeatherMood('sunny');
       setAudioWeatherMood('sunny');
     }
-  }, [isDistracted, setAudioWeatherMood]);
+  }, [isDistracted, isExploring, setAudioWeatherMood]);
 
   // Boat animation effect
   useEffect(() => {
     const animateBoat = () => {
-      if (!isDistracted) {
+      if (!isDistracted && !isExploring) {
         // Move boat forward when focused
         boatPosition.current.x += 0.1;
         if (boatPosition.current.x > 90) {
@@ -108,7 +126,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
     const animationInterval = setInterval(animateBoat, 100);
     return () => clearInterval(animationInterval);
-  }, [isDistracted]);
+  }, [isDistracted, isExploring]);
 
   const handleEndVoyage = async () => {
     await endVoyage();
@@ -118,6 +136,32 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const handleDistractionChoice = async (choice: 'return_to_course' | 'exploring') => {
     await handleDistractionResponse(choice);
     setShowDistractionAlert(false);
+    
+    if (choice === 'exploring') {
+      setIsExploring(true);
+      stopMonitoring();
+      setWeatherMood('cloudy');
+      setAudioWeatherMood('cloudy');
+    }
+  };
+
+  const handleReturnToCourse = () => {
+    setIsExploring(false);
+    startMonitoring();
+    setWeatherMood('sunny');
+    setAudioWeatherMood('sunny');
+  };
+
+  const handleCaptureInspiration = (content: string, type: 'text' | 'voice') => {
+    const newNote = {
+      content,
+      type,
+      timestamp: Date.now()
+    };
+    setInspirationNotes(prev => [...prev, newNote]);
+    
+    // Show seagull with encouraging message
+    setShowSeagull(true);
   };
 
   const formatTime = (seconds: number) => {
@@ -138,6 +182,9 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 relative overflow-hidden">
+      {/* Weather System */}
+      <WeatherSystem mood={weatherMood} />
+
       {/* Ocean Background */}
       <div className="absolute inset-0">
         <motion.div
@@ -211,7 +258,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       </div>
 
       {/* Top Status Bar */}
-      <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
+      <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
         <div className="flex items-center space-x-4">
           <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
             <span className="text-white font-mono text-lg">{formatTime(elapsedTime)}</span>
@@ -222,6 +269,16 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
             <span className="text-white text-sm">{getWeatherEmoji()} {weatherMood}</span>
           </div>
+          {isExploring && (
+            <div className="bg-purple-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
+              <span className="text-white text-sm">🧭 Exploring</span>
+            </div>
+          )}
+          {inspirationNotes.length > 0 && (
+            <div className="bg-green-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
+              <span className="text-white text-sm">💡 {inspirationNotes.length} notes</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center space-x-2">
@@ -271,8 +328,26 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                 </div>
                 
                 <div>
-                  <p className="text-sm text-gray-600 mb-2">Monitoring: {isMonitoring ? 'Active' : 'Inactive'}</p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Monitoring: {isMonitoring ? 'Active' : 'Inactive'}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Mode: {isExploring ? 'Exploration' : 'Focus'}
+                  </p>
                 </div>
+                
+                {inspirationNotes.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium mb-1">Captured Notes:</p>
+                    <div className="max-h-20 overflow-y-auto text-xs text-gray-600">
+                      {inspirationNotes.slice(-3).map((note, index) => (
+                        <div key={index} className="mb-1">
+                          {note.type === 'voice' ? '🎤' : '📝'} {note.content.slice(0, 30)}...
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 <Button
                   onClick={handleEndVoyage}
@@ -290,45 +365,30 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       </AnimatePresence>
 
       {/* Distraction Alert */}
-      <AnimatePresence>
-        {showDistractionAlert && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute inset-0 bg-black/50 flex items-center justify-center z-30"
-          >
-            <Card className="p-8 max-w-md mx-4 text-center">
-              <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-4">Captain is off course!</h2>
-              <p className="text-gray-600 mb-6">
-                We detected you might be distracted. What would you like to do?
-              </p>
-              
-              <div className="space-y-3">
-                <Button
-                  onClick={() => handleDistractionChoice('return_to_course')}
-                  className="w-full"
-                  size="lg"
-                >
-                  Return to Course
-                </Button>
-                <Button
-                  onClick={() => handleDistractionChoice('exploring')}
-                  variant="outline"
-                  className="w-full"
-                  size="lg"
-                >
-                  I'm Exploring
-                </Button>
-              </div>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <DistractionAlert
+        isVisible={showDistractionAlert}
+        onResponse={handleDistractionChoice}
+        distractionType="tab_switch"
+        duration={elapsedTime * 1000}
+      />
+
+      {/* Exploration Mode */}
+      <ExplorationMode
+        isActive={isExploring}
+        onReturnToCourse={handleReturnToCourse}
+        onCaptureInspiration={handleCaptureInspiration}
+      />
+
+      {/* Seagull Companion */}
+      <SeagullCompanion
+        isVisible={showSeagull}
+        voyageTime={elapsedTime}
+        distractionCount={distractionCount}
+        onDismiss={() => setShowSeagull(false)}
+      />
 
       {/* Bottom Info */}
-      <div className="absolute bottom-4 left-4 right-4">
+      <div className="absolute bottom-4 left-4 right-4 z-10">
         <div className="bg-white/20 backdrop-blur-sm rounded-lg px-6 py-3">
           <p className="text-white text-center">
             Sailing to <strong>{destination.destination_name}</strong>
