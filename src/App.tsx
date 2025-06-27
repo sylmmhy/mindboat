@@ -15,20 +15,43 @@ import type { Destination } from './types';
 type AppState = 'auth' | 'lighthouse' | 'destinations' | 'voyage-prep' | 'sailing' | 'voyage-complete' | 'map';
 
 function App() {
-  const { user, lighthouseGoal, initialize, isLoading } = useUserStore();
+  const { 
+    user, 
+    lighthouseGoal, 
+    initialize, 
+    isLoading, 
+    isAuthenticated, 
+    authMode,
+    error: authError 
+  } = useUserStore();
+  
   const { destinations, loadDestinations } = useDestinationStore();
   const { currentVoyage, voyageHistory, startVoyage, endVoyage } = useVoyageStore();
+  
   const [appState, setAppState] = useState<AppState>('auth');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [completedVoyage, setCompletedVoyage] = useState<any>(null);
+  const [initializationComplete, setInitializationComplete] = useState(false);
 
+  // Initialize the app
   useEffect(() => {
-    initialize();
+    const initApp = async () => {
+      await initialize();
+      setInitializationComplete(true);
+    };
+    
+    initApp();
   }, [initialize]);
 
+  // Handle state transitions after initialization
   useEffect(() => {
-    if (user) {
-      loadDestinations(user.id);
+    if (!initializationComplete) return;
+
+    if (isAuthenticated && user) {
+      // Load user data
+      if (authMode === 'supabase') {
+        loadDestinations(user.id);
+      }
       
       // Determine app state based on user progress and current voyage
       if (!lighthouseGoal) {
@@ -43,12 +66,23 @@ function App() {
     } else {
       setAppState('auth');
     }
-  }, [user, lighthouseGoal, currentVoyage]);
+  }, [isAuthenticated, user, lighthouseGoal, currentVoyage, authMode, initializationComplete]);
 
-  if (isLoading) {
+  // Show loading screen during initialization
+  if (!initializationComplete || isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <div className="text-white text-xl">
+            {isLoading ? 'Loading...' : 'Initializing MindBoat...'}
+          </div>
+          {authError && (
+            <div className="mt-4 text-red-300 text-sm max-w-md">
+              {authError}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -79,26 +113,37 @@ function App() {
     
     setSelectedDestination(destination);
     
-    // Start the voyage in the store
-    await startVoyage(destination.id, user.id, 25); // Default 25 minutes
-    
-    // Transition to sailing mode
-    setAppState('sailing');
+    try {
+      // Start the voyage in the store
+      await startVoyage(destination.id, user.id, 25); // Default 25 minutes
+      
+      // Transition to sailing mode
+      setAppState('sailing');
+    } catch (error) {
+      console.error('Failed to start voyage:', error);
+      // Handle error - maybe show a notification
+    }
   };
 
   const handleEndVoyage = async () => {
     if (currentVoyage && selectedDestination) {
-      // End the voyage in the store
-      await endVoyage();
-      
-      // Set completed voyage data for the completion screen
-      setCompletedVoyage({
-        ...currentVoyage,
-        destination: selectedDestination
-      });
-      
-      // Transition to voyage complete screen
-      setAppState('voyage-complete');
+      try {
+        // End the voyage in the store
+        await endVoyage();
+        
+        // Set completed voyage data for the completion screen
+        setCompletedVoyage({
+          ...currentVoyage,
+          destination: selectedDestination
+        });
+        
+        // Transition to voyage complete screen
+        setAppState('voyage-complete');
+      } catch (error) {
+        console.error('Failed to end voyage:', error);
+        // Handle error gracefully
+        setAppState('voyage-prep');
+      }
     }
   };
 

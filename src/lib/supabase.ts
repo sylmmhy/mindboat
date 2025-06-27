@@ -13,23 +13,24 @@ if (!supabaseUrl || !supabaseAnonKey) {
   supabase = {
     auth: {
       signInWithPassword: async () => ({ 
-        data: { user: { id: 'demo-user', email: 'demo@example.com' } }, 
-        error: null 
+        data: { user: null }, 
+        error: new Error('Database connection not configured. Please set up Supabase or continue in demo mode.') 
       }),
       signUp: async () => ({ 
-        data: { user: { id: 'demo-user', email: 'demo@example.com' } }, 
-        error: null 
+        data: { user: null }, 
+        error: new Error('Database connection not configured. Please set up Supabase or continue in demo mode.') 
       }),
       signOut: async () => ({ error: null }),
       getSession: async () => ({ 
-        data: { session: { user: { id: 'demo-user', email: 'demo@example.com' } } } 
+        data: { session: null },
+        error: null
       }),
     },
     from: () => ({
       select: () => ({
         eq: () => ({
-          order: () => ({ data: [], error: null }),
-          maybeSingle: () => ({ data: null, error: null }),
+          order: () => ({ data: [], error: new Error('Demo mode: Database not connected') }),
+          maybeSingle: () => ({ data: null, error: new Error('Demo mode: Database not connected') }),
         }),
       }),
       insert: () => ({
