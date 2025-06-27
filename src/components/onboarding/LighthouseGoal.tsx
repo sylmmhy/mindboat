@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Lighthouse, ArrowRight } from 'lucide-react';
+import { Lightbulb as Lighthouse, ArrowRight } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { useUserStore } from '../../stores/userStore';
