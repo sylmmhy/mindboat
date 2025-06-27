@@ -49,7 +49,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
             <Anchor className="w-16 h-16 text-blue-300" />
           </motion.div>
           <h1 className="text-3xl font-bold text-white mb-2">MindBoat</h1>
-          <p className="text-blue-200">开始你的专注航行之旅</p>
+          <p className="text-blue-200">Begin your focused sailing journey</p>
         </div>
 
         {/* Auth Form */}
@@ -61,7 +61,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
         >
           <form onSubmit={handleSubmit} className="space-y-6">
             <Input
-              label="邮箱"
+              label="Email"
               type="email"
               value={email}
               onChange={setEmail}
@@ -70,7 +70,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
             />
             
             <Input
-              label="密码"
+              label="Password"
               type="password"
               value={password}
               onChange={setPassword}
@@ -94,7 +94,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
               className="w-full"
               size="lg"
             >
-              {isSignUp ? '注册账户' : '登录'}
+              {isSignUp ? 'Create Account' : 'Sign In'}
             </Button>
           </form>
 
@@ -104,7 +104,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
               onClick={() => setIsSignUp(!isSignUp)}
               className="text-blue-300 hover:text-blue-200 transition-colors"
             >
-              {isSignUp ? '已有账户？点击登录' : '没有账户？点击注册'}
+              {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
             </button>
           </div>
         </motion.div>

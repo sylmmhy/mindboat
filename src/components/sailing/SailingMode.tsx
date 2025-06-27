@@ -217,7 +217,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             <span className="text-white font-mono text-lg">{formatTime(elapsedTime)}</span>
           </div>
           <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
-            <span className="text-white text-sm">分心次数: {distractionCount}</span>
+            <span className="text-white text-sm">Distractions: {distractionCount}</span>
           </div>
           <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
             <span className="text-white text-sm">{getWeatherEmoji()} {weatherMood}</span>
@@ -254,11 +254,11 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             className="absolute top-16 right-4 z-20"
           >
             <Card className="p-4 w-64">
-              <h3 className="font-semibold mb-3">航行控制</h3>
+              <h3 className="font-semibold mb-3">Sailing Controls</h3>
               
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">环境音量</label>
+                  <label className="block text-sm font-medium mb-1">Ambient Volume</label>
                   <input
                     type="range"
                     min="0"
@@ -271,7 +271,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                 </div>
                 
                 <div>
-                  <p className="text-sm text-gray-600 mb-2">监控状态: {isMonitoring ? '开启' : '关闭'}</p>
+                  <p className="text-sm text-gray-600 mb-2">Monitoring: {isMonitoring ? 'Active' : 'Inactive'}</p>
                 </div>
                 
                 <Button
@@ -281,7 +281,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                   className="w-full"
                   icon={ArrowLeft}
                 >
-                  结束航行
+                  End Voyage
                 </Button>
               </div>
             </Card>
@@ -300,9 +300,9 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           >
             <Card className="p-8 max-w-md mx-4 text-center">
               <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-4">船长正在偏航！</h2>
+              <h2 className="text-2xl font-bold mb-4">Captain is off course!</h2>
               <p className="text-gray-600 mb-6">
-                检测到你可能分心了，你想要...
+                We detected you might be distracted. What would you like to do?
               </p>
               
               <div className="space-y-3">
@@ -311,7 +311,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                   className="w-full"
                   size="lg"
                 >
-                  返回航线
+                  Return to Course
                 </Button>
                 <Button
                   onClick={() => handleDistractionChoice('exploring')}
@@ -319,7 +319,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                   className="w-full"
                   size="lg"
                 >
-                  我在探索
+                  I'm Exploring
                 </Button>
               </div>
             </Card>
@@ -331,7 +331,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       <div className="absolute bottom-4 left-4 right-4">
         <div className="bg-white/20 backdrop-blur-sm rounded-lg px-6 py-3">
           <p className="text-white text-center">
-            正在航行至 <strong>{destination.destination_name}</strong>
+            Sailing to <strong>{destination.destination_name}</strong>
           </p>
           <p className="text-white/80 text-sm text-center mt-1">
             {destination.description}

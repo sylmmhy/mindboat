@@ -40,10 +40,10 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoy
   };
 
   const encouragementMessages = [
-    "愿风助你前行，愿海为你开路",
-    "每一次专注，都是向理想自己的靠近",
-    "在专注的海洋中，找到内心的宁静",
-    "让思绪如帆，专注如舵，驶向目标",
+    "May the wind guide your way and the sea open your path",
+    "Every moment of focus brings you closer to your ideal self",
+    "Find inner peace in the ocean of concentration",
+    "Let thoughts be your sail and focus your rudder toward your goal",
   ];
 
   const randomEncouragement = encouragementMessages[Math.floor(Math.random() * encouragementMessages.length)];
@@ -60,17 +60,17 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoy
             <div className="w-20 h-20 mx-auto mb-4">
               <Anchor className="w-20 h-20 text-blue-300" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">准备启航</h1>
-            <p className="text-blue-200">目的地: {selectedDestination.destination_name}</p>
+            <h1 className="text-3xl font-bold text-white mb-2">Prepare to Sail</h1>
+            <p className="text-blue-200">Destination: {selectedDestination.destination_name}</p>
           </motion.div>
 
           <Card className="p-8 mb-6">
-            <h2 className="text-2xl font-semibold mb-6 text-center">航行设置</h2>
+            <h2 className="text-2xl font-semibold mb-6 text-center">Voyage Settings</h2>
             
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  计划航行时长 (分钟)
+                  Planned Duration (minutes)
                 </label>
                 <input
                   type="number"
@@ -83,28 +83,28 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoy
               </div>
 
               <div className="border-t pt-6">
-                <h3 className="text-lg font-medium mb-4">传感器权限</h3>
+                <h3 className="text-lg font-medium mb-4">Sensor Permissions</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  为了更好地检测分心状态，我们需要以下权限：
+                  To better detect distraction, we need the following permissions:
                 </p>
                 
                 <div className="space-y-3">
                   <PermissionItem
                     icon={Camera}
-                    title="摄像头"
-                    description="检测视线是否离开屏幕"
+                    title="Camera"
+                    description="Detect when your gaze leaves the screen"
                     granted={permissionsGranted.camera}
                   />
                   <PermissionItem
                     icon={Mic}
-                    title="麦克风"
-                    description="检测环境声音变化"
+                    title="Microphone"
+                    description="Detect environmental sound changes"
                     granted={permissionsGranted.microphone}
                   />
                   <PermissionItem
                     icon={Monitor}
-                    title="标签页切换"
-                    description="检测是否切换到其他应用"
+                    title="Tab Switching"
+                    description="Detect when switching to other apps"
                     granted={true} // Always available
                   />
                 </div>
@@ -115,7 +115,7 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoy
                     className="w-full mt-4"
                     variant="outline"
                   >
-                    请求权限
+                    Request Permissions
                   </Button>
                 )}
               </div>
@@ -124,7 +124,7 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoy
 
           <Card className="p-6 mb-6 bg-gradient-to-r from-blue-50 to-indigo-50">
             <div className="text-center">
-              <p className="text-lg font-medium text-gray-800 mb-2">今日寄语</p>
+              <p className="text-lg font-medium text-gray-800 mb-2">Daily Inspiration</p>
               <p className="text-gray-600 italic">"{randomEncouragement}"</p>
             </div>
           </Card>
@@ -137,7 +137,7 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoy
               icon={Play}
               className="px-8 py-4 text-xl"
             >
-              开始航行
+              Start Sailing
             </Button>
           </div>
         </div>
@@ -154,10 +154,10 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoy
           className="text-center mb-12"
         >
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            选择你的航行目的地
+            Choose Your Sailing Destination
           </h1>
           <p className="text-xl text-purple-200">
-            每一次专注，都是向理想自己的靠近
+            Every moment of focus brings you closer to your ideal self
           </p>
         </motion.div>
 
@@ -232,7 +232,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({ destination, index, o
           </p>
           
           <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-700">相关应用：</p>
+            <p className="text-sm font-medium text-gray-700">Related Apps:</p>
             <div className="flex flex-wrap gap-2">
               {destination.related_apps.slice(0, 3).map((app, appIndex) => (
                 <span

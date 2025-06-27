@@ -20,20 +20,20 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     if (hours > 0) {
-      return `${hours}小时${mins}分钟`;
+      return `${hours}h ${mins}m`;
     }
-    return `${mins}分钟`;
+    return `${mins}m`;
   };
 
   const getPerformanceMessage = () => {
     if (voyage.distraction_count === 0) {
-      return "完美的专注航行！你的意志如灯塔般坚定。";
+      return "Perfect focused sailing! Your will is as steady as a lighthouse.";
     } else if (voyage.distraction_count <= 2) {
-      return "很好的专注表现！偶尔的分心是正常的。";
+      return "Great focus performance! Occasional distractions are normal.";
     } else if (voyage.distraction_count <= 5) {
-      return "不错的尝试！专注是需要练习的技能。";
+      return "Good attempt! Focus is a skill that requires practice.";
     } else {
-      return "每一次航行都是成长，继续努力！";
+      return "Every voyage is growth. Keep sailing forward!";
     }
   };
 
@@ -61,9 +61,9 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
           >
             <Trophy className="w-24 h-24 text-yellow-400" />
           </motion.div>
-          <h1 className="text-4xl font-bold text-white mb-2">航行完成！</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">Voyage Complete!</h1>
           <p className="text-xl text-green-200">
-            你已成功到达 {destination.destination_name}
+            You have successfully reached {destination.destination_name}
           </p>
         </motion.div>
 
@@ -82,7 +82,7 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
                 <p className="text-2xl font-bold text-gray-800">
                   {formatDuration(voyage.actual_duration || 0)}
                 </p>
-                <p className="text-sm text-gray-600">实际航行时长</p>
+                <p className="text-sm text-gray-600">Actual Duration</p>
               </div>
               
               <div className="text-center">
@@ -90,14 +90,14 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
                 <p className="text-2xl font-bold text-gray-800">
                   {voyage.distraction_count}
                 </p>
-                <p className="text-sm text-gray-600">分心次数</p>
+                <p className="text-sm text-gray-600">Distractions</p>
               </div>
             </div>
           </Card>
 
           {/* Performance Message */}
           <Card className="p-6 text-center">
-            <h3 className="text-xl font-semibold mb-3">航行评价</h3>
+            <h3 className="text-xl font-semibold mb-3">Voyage Assessment</h3>
             <p className={`text-lg font-medium ${getPerformanceColor()}`}>
               {getPerformanceMessage()}
             </p>
@@ -117,7 +117,7 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
                 </h3>
                 <p className="text-gray-600 mb-3">{destination.description}</p>
                 <p className="text-sm text-gray-500">
-                  原始任务: {destination.original_task}
+                  Original task: {destination.original_task}
                 </p>
               </div>
             </div>
@@ -126,18 +126,18 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
           {/* Planned vs Actual */}
           {voyage.planned_duration && (
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">计划对比</h3>
+              <h3 className="text-lg font-semibold mb-4">Plan vs Actual</h3>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">计划时长:</span>
+                  <span className="text-gray-600">Planned Duration:</span>
                   <span className="font-medium">{formatDuration(voyage.planned_duration)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">实际时长:</span>
+                  <span className="text-gray-600">Actual Duration:</span>
                   <span className="font-medium">{formatDuration(voyage.actual_duration || 0)}</span>
                 </div>
                 <div className="flex justify-between border-t pt-2">
-                  <span className="text-gray-600">完成度:</span>
+                  <span className="text-gray-600">Completion:</span>
                   <span className={`font-medium ${
                     (voyage.actual_duration || 0) >= voyage.planned_duration 
                       ? 'text-green-600' 
@@ -158,7 +158,7 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
               icon={ArrowRight}
               className="px-8"
             >
-              查看航行地图
+              View Voyage Map
             </Button>
           </div>
         </motion.div>

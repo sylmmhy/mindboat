@@ -77,9 +77,9 @@ export const GrandMap: React.FC<GrandMapProps> = ({ onBack }) => {
           <div>
             <h1 className="text-4xl font-bold text-white mb-2 flex items-center">
               <Map className="w-10 h-10 mr-3" />
-              航行大地图
+              Grand Voyage Map
             </h1>
-            <p className="text-xl text-blue-200">你的专注成长轨迹</p>
+            <p className="text-xl text-blue-200">Your focused growth journey</p>
           </div>
           <Button
             onClick={onBack}
@@ -87,7 +87,7 @@ export const GrandMap: React.FC<GrandMapProps> = ({ onBack }) => {
             icon={ArrowLeft}
             className="text-white border-white hover:bg-white/10"
           >
-            返回
+            Back
           </Button>
         </motion.div>
 
@@ -101,19 +101,19 @@ export const GrandMap: React.FC<GrandMapProps> = ({ onBack }) => {
           <Card className="p-6 text-center">
             <Calendar className="w-8 h-8 text-blue-500 mx-auto mb-2" />
             <p className="text-2xl font-bold text-gray-800">{totalVoyages}</p>
-            <p className="text-sm text-gray-600">总航行次数</p>
+            <p className="text-sm text-gray-600">Total Voyages</p>
           </Card>
           
           <Card className="p-6 text-center">
             <Clock className="w-8 h-8 text-green-500 mx-auto mb-2" />
             <p className="text-2xl font-bold text-gray-800">{formatDuration(totalFocusTime)}</p>
-            <p className="text-sm text-gray-600">累计专注时长</p>
+            <p className="text-sm text-gray-600">Total Focus Time</p>
           </Card>
           
           <Card className="p-6 text-center">
             <TrendingUp className="w-8 h-8 text-purple-500 mx-auto mb-2" />
             <p className="text-2xl font-bold text-gray-800">{formatDuration(averageFocusTime)}</p>
-            <p className="text-sm text-gray-600">平均航行时长</p>
+            <p className="text-sm text-gray-600">Average Voyage Duration</p>
           </Card>
         </motion.div>
 
@@ -124,13 +124,13 @@ export const GrandMap: React.FC<GrandMapProps> = ({ onBack }) => {
           transition={{ delay: 0.6 }}
         >
           <Card className="p-8 mb-8">
-            <h2 className="text-2xl font-semibold mb-6">你的航行轨迹</h2>
+            <h2 className="text-2xl font-semibold mb-6">Your Voyage Trail</h2>
             
             {voyageHistory.length === 0 ? (
               <div className="text-center py-12">
                 <Map className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 text-lg">还没有完成的航行</p>
-                <p className="text-gray-400">开始你的第一次专注航行吧！</p>
+                <p className="text-gray-500 text-lg">No completed voyages yet</p>
+                <p className="text-gray-400">Start your first focused voyage!</p>
               </div>
             ) : (
               <div className="relative">
@@ -190,7 +190,7 @@ export const GrandMap: React.FC<GrandMapProps> = ({ onBack }) => {
                 </svg>
                 
                 <p className="text-sm text-gray-500 mt-4 text-center">
-                  点击地图上的点查看航行详情
+                  Click on points in the map to view voyage details
                 </p>
               </div>
             )}
@@ -204,11 +204,11 @@ export const GrandMap: React.FC<GrandMapProps> = ({ onBack }) => {
             animate={{ opacity: 1, y: 0 }}
           >
             <Card className="p-6">
-              <h3 className="text-xl font-semibold mb-4">航行详情</h3>
+              <h3 className="text-xl font-semibold mb-4">Voyage Details</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h4 className="font-medium text-gray-700 mb-2">目的地</h4>
+                  <h4 className="font-medium text-gray-700 mb-2">Destination</h4>
                   <p className="text-lg font-semibold" style={{ color: selectedVoyage.destination?.color_theme }}>
                     {selectedVoyage.destination?.destination_name}
                   </p>
@@ -219,17 +219,17 @@ export const GrandMap: React.FC<GrandMapProps> = ({ onBack }) => {
                 
                 <div className="space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">航行时长:</span>
+                    <span className="text-gray-600">Duration:</span>
                     <span className="font-medium">{formatDuration(selectedVoyage.actual_duration || 0)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">分心次数:</span>
+                    <span className="text-gray-600">Distractions:</span>
                     <span className="font-medium">{selectedVoyage.distraction_count}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">航行日期:</span>
+                    <span className="text-gray-600">Date:</span>
                     <span className="font-medium">
-                      {new Date(selectedVoyage.created_at).toLocaleDateString('zh-CN')}
+                      {new Date(selectedVoyage.created_at).toLocaleDateString()}
                     </span>
                   </div>
                 </div>

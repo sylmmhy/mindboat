@@ -61,13 +61,13 @@ export const LighthouseGoal: React.FC<LighthouseGoalProps> = ({ onComplete }) =>
           className="mb-12"
         >
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
-            设定你的灯塔
+            Set Your Lighthouse
           </h1>
           <p className="text-xl text-blue-200 mb-4">
-            在每个人的内心深处，都有一片海洋
+            Deep within everyone's heart lies an ocean
           </p>
           <p className="text-lg text-blue-300">
-            而在海洋的尽头，是你想成为的那座灯塔
+            And at the end of that ocean stands the lighthouse you aspire to become
           </p>
         </motion.div>
 
@@ -79,11 +79,11 @@ export const LighthouseGoal: React.FC<LighthouseGoalProps> = ({ onComplete }) =>
           className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 mb-8"
         >
           <h2 className="text-2xl font-semibold text-white mb-6">
-            你的理想自己是什么样的？
+            What does your ideal self look like?
           </h2>
           
           <Input
-            placeholder="例如：成为一名优秀的软件工程师，帮助他人解决问题..."
+            placeholder="e.g., Become an excellent software engineer who helps others solve problems..."
             value={localGoal}
             onChange={setLocalGoal}
             className="mb-6"
@@ -97,7 +97,7 @@ export const LighthouseGoal: React.FC<LighthouseGoalProps> = ({ onComplete }) =>
             icon={ArrowRight}
             className="w-full md:w-auto"
           >
-            点亮灯塔
+            Light the Lighthouse
           </Button>
         </motion.div>
 
@@ -108,10 +108,10 @@ export const LighthouseGoal: React.FC<LighthouseGoalProps> = ({ onComplete }) =>
           transition={{ delay: 1.2 }}
           className="text-blue-200 space-y-2"
         >
-          <p><strong className="text-white">船</strong> = 你自己</p>
-          <p><strong className="text-white">灯塔</strong> = 你的理想自己</p>
-          <p><strong className="text-white">航行</strong> = 专注的行动</p>
-          <p><strong className="text-white">地图</strong> = 你的成长轨迹</p>
+          <p><strong className="text-white">Boat</strong> = You</p>
+          <p><strong className="text-white">Lighthouse</strong> = Your ideal self</p>
+          <p><strong className="text-white">Sailing</strong> = Focused action</p>
+          <p><strong className="text-white">Map</strong> = Your growth journey</p>
         </motion.div>
       </motion.div>
     </div>

@@ -43,13 +43,13 @@ export const CreateDestination: React.FC<CreateDestinationProps> = ({ onComplete
           className="text-center mb-12"
         >
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            创建你的航行目的地
+            Create Your Sailing Destinations
           </h1>
           <p className="text-xl text-purple-200 mb-2">
-            "意念之风"会带你到达不同的目的地
+            "Winds of Intention" will carry you to different destinations
           </p>
           <p className="text-lg text-purple-300">
-            当你的行动与风向一致时，船帆便会鼓起
+            When your actions align with the wind, your sails will fill
           </p>
         </motion.div>
 
@@ -62,12 +62,12 @@ export const CreateDestination: React.FC<CreateDestinationProps> = ({ onComplete
         >
           <h2 className="text-2xl font-semibold text-white mb-4 flex items-center">
             <Plus className="w-6 h-6 mr-2" />
-            添加新任务
+            Add New Task
           </h2>
           
           <div className="flex gap-4">
             <Input
-              placeholder="例如：完成毕业论文、学习钢琴、开发应用..."
+              placeholder="e.g., Complete thesis, Learn piano, Build app..."
               value={newTask}
               onChange={setNewTask}
               className="flex-1"
@@ -78,7 +78,7 @@ export const CreateDestination: React.FC<CreateDestinationProps> = ({ onComplete
               loading={isCreating}
               icon={MapPin}
             >
-              生成目的地
+              Generate Destination
             </Button>
           </div>
         </motion.div>
@@ -93,7 +93,7 @@ export const CreateDestination: React.FC<CreateDestinationProps> = ({ onComplete
               className="mb-8"
             >
               <h2 className="text-2xl font-semibold text-white mb-6">
-                你的目的地
+                Your Destinations
               </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -123,11 +123,11 @@ export const CreateDestination: React.FC<CreateDestinationProps> = ({ onComplete
             icon={ArrowRight}
             className="px-8"
           >
-            开始航行
+            Start Sailing
           </Button>
           {!canProceed && (
             <p className="text-purple-300 mt-4">
-              请至少创建一个目的地才能继续
+              Please create at least one destination to continue
             </p>
           )}
         </motion.div>
@@ -175,7 +175,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({ destination, index, o
           </p>
           
           <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-700">相关应用：</p>
+            <p className="text-sm font-medium text-gray-700">Related Apps:</p>
             <div className="flex flex-wrap gap-2">
               {destination.related_apps.map((app, appIndex) => (
                 <span
@@ -189,7 +189,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({ destination, index, o
           </div>
           
           <div className="mt-4 text-xs text-gray-500">
-            原始任务: {destination.original_task}
+            Original task: {destination.original_task}
           </div>
         </div>
       </Card>
