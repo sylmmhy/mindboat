@@ -33,8 +33,6 @@ function App() {
       // Determine app state based on user progress
       if (!lighthouseGoal) {
         setAppState('lighthouse');
-      } else if (destinations.length === 0) {
-        setAppState('destinations');
       } else if (currentVoyage) {
         setAppState('sailing');
       } else {
@@ -56,15 +54,18 @@ function App() {
   const handleAuthSuccess = () => {
     if (!lighthouseGoal) {
       setAppState('lighthouse');
-    } else if (destinations.length === 0) {
-      setAppState('destinations');
     } else {
       setAppState('voyage-prep');
     }
   };
 
   const handleLighthouseComplete = () => {
-    setAppState('destinations');
+    // Skip destinations if user already has some, go straight to voyage prep
+    if (destinations.length > 0) {
+      setAppState('voyage-prep');
+    } else {
+      setAppState('destinations');
+    }
   };
 
   const handleDestinationsComplete = () => {
@@ -96,6 +97,14 @@ function App() {
     setAppState('voyage-prep');
   };
 
+  const handleViewMap = () => {
+    setAppState('map');
+  };
+
+  const handleManageDestinations = () => {
+    setAppState('destinations');
+  };
+
   return (
     <div className="App">
       {appState === 'auth' && (
@@ -111,7 +120,11 @@ function App() {
       )}
       
       {appState === 'voyage-prep' && (
-        <VoyagePreparation onStartVoyage={handleStartVoyage} />
+        <VoyagePreparation 
+          onStartVoyage={handleStartVoyage}
+          onViewMap={handleViewMap}
+          onManageDestinations={handleManageDestinations}
+        />
       )}
       
       {appState === 'sailing' && selectedDestination && (

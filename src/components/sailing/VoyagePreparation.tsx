@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Anchor, Play, Camera, Mic, Monitor, CheckCircle, AlertCircle } from 'lucide-react';
+import { Anchor, Play, Camera, Mic, Monitor, CheckCircle, AlertCircle, Plus, ArrowLeft, Map } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { Input } from '../ui/Input';
 import { useDestinationStore } from '../../stores/destinationStore';
 import { useVoyageStore } from '../../stores/voyageStore';
 import { useDistraction } from '../../hooks/useDistraction';
@@ -11,15 +12,24 @@ import type { Destination } from '../../types';
 
 interface VoyagePreparationProps {
   onStartVoyage: (destination: Destination) => void;
+  onViewMap?: () => void;
+  onManageDestinations?: () => void;
 }
 
-export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoyage }) => {
+export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ 
+  onStartVoyage, 
+  onViewMap,
+  onManageDestinations 
+}) => {
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [plannedDuration, setPlannedDuration] = useState(25); // Default 25 minutes
   const [permissionsStep, setPermissionsStep] = useState(false);
+  const [showAddDestination, setShowAddDestination] = useState(false);
+  const [newTask, setNewTask] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
   
-  const { destinations } = useDestinationStore();
-  const { startVoyage, isLoading } = useVoyageStore();
+  const { destinations, createDestination, isLoading } = useDestinationStore();
+  const { startVoyage } = useVoyageStore();
   const { user } = useUserStore();
   const { requestPermissions, permissionsGranted } = useDistraction();
 
@@ -39,6 +49,23 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoy
     onStartVoyage(selectedDestination);
   };
 
+  const handleCreateDestination = async () => {
+    if (!newTask.trim() || !user) return;
+    
+    setIsCreating(true);
+    const newDestination = await createDestination(newTask, user.id);
+    if (newDestination) {
+      setNewTask('');
+      setShowAddDestination(false);
+    }
+    setIsCreating(false);
+  };
+
+  const handleBackToDestinations = () => {
+    setSelectedDestination(null);
+    setPermissionsStep(false);
+  };
+
   const encouragementMessages = [
     "May the wind guide your way and the sea open your path",
     "Every moment of focus brings you closer to your ideal self",
@@ -52,6 +79,22 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoy
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 p-4">
         <div className="max-w-2xl mx-auto py-8">
+          {/* Back Button */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="mb-6"
+          >
+            <Button
+              onClick={handleBackToDestinations}
+              variant="ghost"
+              icon={ArrowLeft}
+              className="text-white hover:bg-white/10"
+            >
+              Back to Destinations
+            </Button>
+          </motion.div>
+
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -148,19 +191,94 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoy
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 p-4">
       <div className="max-w-4xl mx-auto py-8">
+        {/* Header with Navigation */}
         <motion.div
           initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
+          className="flex items-center justify-between mb-8"
         >
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            Choose Your Sailing Destination
-          </h1>
-          <p className="text-xl text-purple-200">
-            Every moment of focus brings you closer to your ideal self
-          </p>
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+              Choose Your Sailing Destination
+            </h1>
+            <p className="text-xl text-purple-200">
+              Every moment of focus brings you closer to your ideal self
+            </p>
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            {onViewMap && (
+              <Button
+                onClick={onViewMap}
+                variant="outline"
+                icon={Map}
+                className="text-white border-white hover:bg-white/10"
+              >
+                View Map
+              </Button>
+            )}
+          </div>
         </motion.div>
 
+        {/* Add New Destination Button */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mb-6"
+        >
+          <Button
+            onClick={() => setShowAddDestination(!showAddDestination)}
+            variant="outline"
+            icon={Plus}
+            className="text-white border-white hover:bg-white/10"
+          >
+            Add New Destination
+          </Button>
+        </motion.div>
+
+        {/* Add Destination Form */}
+        <AnimatePresence>
+          {showAddDestination && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-8"
+            >
+              <Card className="p-6">
+                <h3 className="text-xl font-semibold mb-4">Create New Destination</h3>
+                <div className="flex gap-4">
+                  <Input
+                    placeholder="e.g., Complete thesis, Learn piano, Build app..."
+                    value={newTask}
+                    onChange={setNewTask}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleCreateDestination}
+                    disabled={!newTask.trim()}
+                    loading={isCreating}
+                    icon={Plus}
+                  >
+                    Create
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowAddDestination(false);
+                      setNewTask('');
+                    }}
+                    variant="ghost"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Destinations Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence>
             {destinations.map((destination, index) => (
@@ -173,6 +291,18 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({ onStartVoy
             ))}
           </AnimatePresence>
         </div>
+
+        {destinations.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-12"
+          >
+            <Anchor className="w-16 h-16 text-white/50 mx-auto mb-4" />
+            <p className="text-white text-xl mb-2">No destinations yet</p>
+            <p className="text-purple-200">Create your first destination to start sailing!</p>
+          </motion.div>
+        )}
       </div>
     </div>
   );
