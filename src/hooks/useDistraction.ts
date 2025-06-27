@@ -101,9 +101,6 @@ export const useDistraction = () => {
     document.addEventListener('click', handleActivity);
     document.addEventListener('scroll', handleActivity);
     
-    // Initialize idle detection
-    handleActivity();
-    
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('mousemove', handleActivity);
@@ -153,7 +150,25 @@ export const useDistraction = () => {
   const startMonitoring = useCallback(() => {
     setIsMonitoring(true);
     lastActivityTime.current = Date.now();
-  }, []);
+    
+    // Initialize idle detection when monitoring starts
+    if (idleTimeoutRef.current) {
+      clearTimeout(idleTimeoutRef.current);
+    }
+    
+    idleTimeoutRef.current = setTimeout(() => {
+      const timeSinceActivity = Date.now() - lastActivityTime.current;
+      if (timeSinceActivity >= 120000) { // 2 minutes of inactivity
+        setIsDistracted(true);
+        setLastDistractionType('idle');
+        distractionStartTime.current = Date.now() - timeSinceActivity;
+        recordDistraction({
+          type: 'idle',
+          timestamp: distractionStartTime.current,
+        });
+      }
+    }, 120000); // 2 minute idle threshold
+  }, [recordDistraction]);
 
   const stopMonitoring = useCallback(() => {
     setIsMonitoring(false);
