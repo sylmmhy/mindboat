@@ -105,18 +105,22 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     };
   }, [currentVoyage, showSuccess]);
 
-  // Distraction alert effect
+  // Distraction alert effect - Fixed to prevent infinite re-renders
   useEffect(() => {
     if (isDistracted && !isExploring) {
       setShowDistractionAlert(true);
-      setWeatherMood('stormy');
-      setAudioWeatherMood('stormy');
+      if (weatherMood !== 'stormy') {
+        setWeatherMood('stormy');
+        setAudioWeatherMood('stormy');
+      }
     } else if (!isExploring) {
       setShowDistractionAlert(false);
-      setWeatherMood('sunny');
-      setAudioWeatherMood('sunny');
+      if (weatherMood !== 'sunny') {
+        setWeatherMood('sunny');
+        setAudioWeatherMood('sunny');
+      }
     }
-  }, [isDistracted, isExploring, setAudioWeatherMood]);
+  }, [isDistracted, isExploring, weatherMood, setAudioWeatherMood]);
 
   // Boat animation effect
   useEffect(() => {
@@ -159,8 +163,10 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     if (choice === 'exploring') {
       setIsExploring(true);
       stopMonitoring();
-      setWeatherMood('cloudy');
-      setAudioWeatherMood('cloudy');
+      if (weatherMood !== 'cloudy') {
+        setWeatherMood('cloudy');
+        setAudioWeatherMood('cloudy');
+      }
       
       showInfo(
         'Exploration mode activated. Feel free to explore!',
@@ -179,8 +185,10 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const handleReturnToCourse = () => {
     setIsExploring(false);
     startMonitoring();
-    setWeatherMood('sunny');
-    setAudioWeatherMood('sunny');
+    if (weatherMood !== 'sunny') {
+      setWeatherMood('sunny');
+      setAudioWeatherMood('sunny');
+    }
     
     showSuccess(
       'Welcome back! Resuming focused sailing.',
