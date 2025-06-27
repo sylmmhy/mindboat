@@ -70,7 +70,7 @@ export const useUserStore = create<UserState>((set, get) => ({
           .from('user_profiles')
           .select('lighthouse_goal')
           .eq('id', data.user.id)
-          .single();
+          .maybeSingle();
         
         if (profile?.lighthouse_goal) {
           set({ lighthouseGoal: profile.lighthouse_goal });
@@ -133,7 +133,7 @@ export const useUserStore = create<UserState>((set, get) => ({
           .from('user_profiles')
           .select('lighthouse_goal')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
         
         if (profile?.lighthouse_goal) {
           set({ lighthouseGoal: profile.lighthouse_goal });
