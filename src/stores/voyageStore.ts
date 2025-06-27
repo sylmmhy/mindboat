@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { useNotificationStore } from './notificationStore';
 import type { Voyage, DistractionDetectionEvent } from '../types';
 
 interface VoyageState {
@@ -51,7 +52,36 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
         `)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // If database fails, create a local voyage
+        console.warn('Database voyage creation failed, creating local voyage:', error);
+        
+        const localVoyage: Voyage = {
+          id: `local-${Date.now()}`,
+          user_id: userId,
+          destination_id: destinationId,
+          start_time: startTime.toISOString(),
+          planned_duration: plannedDuration,
+          status: 'active',
+          weather_mood: 'sunny',
+          distraction_count: 0,
+          created_at: startTime.toISOString(),
+        };
+
+        set({
+          currentVoyage: localVoyage,
+          isVoyageActive: true,
+          distractionCount: 0,
+          startTime,
+        });
+
+        useNotificationStore.getState().showWarning(
+          'Voyage started locally. Progress may not be saved.',
+          'Local Voyage'
+        );
+        
+        return;
+      }
 
       set({
         currentVoyage: data,
@@ -59,8 +89,19 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
         distractionCount: 0,
         startTime,
       });
+
+      useNotificationStore.getState().showSuccess(
+        'Your voyage has begun! Stay focused on your destination.',
+        'Voyage Started'
+      );
     } catch (error) {
+      console.error('Failed to start voyage:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to start voyage' });
+      
+      useNotificationStore.getState().showError(
+        'Failed to start your voyage. Please try again.',
+        'Voyage Error'
+      );
     } finally {
       set({ isLoading: false });
     }
@@ -76,6 +117,32 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
       const endTime = new Date();
       const actualDuration = Math.floor((endTime.getTime() - startTime.getTime()) / 60000); // minutes
 
+      // If it's a local voyage, just update local state
+      if (currentVoyage.id.startsWith('local-')) {
+        const updatedVoyage = {
+          ...currentVoyage,
+          end_time: endTime.toISOString(),
+          actual_duration: actualDuration,
+          distraction_count: distractionCount,
+          status: 'completed' as const,
+        };
+
+        set(state => ({
+          currentVoyage: null,
+          isVoyageActive: false,
+          distractionCount: 0,
+          startTime: null,
+          voyageHistory: [updatedVoyage, ...state.voyageHistory],
+        }));
+
+        useNotificationStore.getState().showSuccess(
+          `Voyage completed! You focused for ${actualDuration} minutes.`,
+          'Local Voyage Complete'
+        );
+        
+        return;
+      }
+
       const { error } = await supabase
         .from('voyages')
         .update({
@@ -86,7 +153,18 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
         })
         .eq('id', currentVoyage.id);
 
-      if (error) throw error;
+      if (error) {
+        console.warn('Database voyage update failed:', error);
+        useNotificationStore.getState().showWarning(
+          'Voyage completed locally. Database sync failed.',
+          'Sync Warning'
+        );
+      } else {
+        useNotificationStore.getState().showSuccess(
+          `Voyage completed and saved! You focused for ${actualDuration} minutes.`,
+          'Voyage Complete'
+        );
+      }
 
       // Update voyage history
       const updatedVoyage = {
@@ -105,7 +183,13 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
         voyageHistory: [updatedVoyage, ...state.voyageHistory],
       }));
     } catch (error) {
+      console.error('Failed to end voyage:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to end voyage' });
+      
+      useNotificationStore.getState().showError(
+        'Failed to save voyage completion. Your progress may be lost.',
+        'Save Error'
+      );
     } finally {
       set({ isLoading: false });
     }
@@ -116,22 +200,39 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
     if (!currentVoyage) return;
 
     try {
-      // Record distraction event
-      const { error } = await supabase
-        .from('distraction_events')
-        .insert({
-          voyage_id: currentVoyage.id,
-          detected_at: new Date(event.timestamp).toISOString(),
-          duration_seconds: event.duration,
-          type: event.type,
-        });
+      // Skip database recording for local voyages
+      if (!currentVoyage.id.startsWith('local-')) {
+        const { error } = await supabase
+          .from('distraction_events')
+          .insert({
+            voyage_id: currentVoyage.id,
+            detected_at: new Date(event.timestamp).toISOString(),
+            duration_seconds: event.duration,
+            type: event.type,
+          });
 
-      if (error) throw error;
+        if (error) {
+          console.warn('Failed to record distraction in database:', error);
+        }
+      }
 
       // Update local distraction count
       set(state => ({
         distractionCount: state.distractionCount + 1
       }));
+
+      // Show notification for distraction
+      const distractionMessages = {
+        tab_switch: 'Tab switching detected',
+        idle: 'Idle time detected',
+        camera_distraction: 'Camera distraction detected'
+      };
+
+      useNotificationStore.getState().showInfo(
+        distractionMessages[event.type] || 'Distraction detected',
+        'Focus Alert',
+        { duration: 3000 }
+      );
     } catch (error) {
       console.error('Failed to record distraction:', error);
     }
@@ -151,11 +252,31 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
         .eq('status', 'completed')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('Failed to load voyage history:', error);
+        useNotificationStore.getState().showWarning(
+          'Could not load voyage history from database.',
+          'Connection Issue'
+        );
+        return;
+      }
       
       set({ voyageHistory: data || [] });
+      
+      if (data && data.length > 0) {
+        useNotificationStore.getState().showSuccess(
+          `Loaded ${data.length} completed voyage${data.length === 1 ? '' : 's'}`,
+          'History Loaded'
+        );
+      }
     } catch (error) {
+      console.error('Failed to load voyage history:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to load voyage history' });
+      
+      useNotificationStore.getState().showError(
+        'Failed to load your voyage history.',
+        'Load Error'
+      );
     } finally {
       set({ isLoading: false });
     }

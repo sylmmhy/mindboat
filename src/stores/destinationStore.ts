@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { useNotificationStore } from './notificationStore';
 import type { Destination } from '../types';
 
 interface DestinationState {
@@ -32,9 +33,21 @@ export const useDestinationStore = create<DestinationState>((set, get) => ({
       if (error) throw error;
       
       set({ destinations: data || [] });
+      
+      if (data && data.length > 0) {
+        useNotificationStore.getState().showSuccess(
+          `Loaded ${data.length} destination${data.length === 1 ? '' : 's'}`,
+          'Destinations Loaded'
+        );
+      }
     } catch (error) {
       console.warn('Failed to load destinations from database:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to load destinations' });
+      
+      useNotificationStore.getState().showWarning(
+        'Could not load destinations from database. You can still create new ones.',
+        'Connection Issue'
+      );
     } finally {
       set({ isLoading: false });
     }
@@ -53,10 +66,22 @@ export const useDestinationStore = create<DestinationState>((set, get) => ({
 
         if (aiError) throw aiError;
         aiData = data;
+        
+        useNotificationStore.getState().showInfo(
+          'AI generated your destination!',
+          'Destination Created',
+          { duration: 3000 }
+        );
       } catch (aiError) {
         console.warn('AI generation failed, using fallback:', aiError);
         // Fallback to simple destination creation
         aiData = generateDestinationFallback(task);
+        
+        useNotificationStore.getState().showInfo(
+          'Created destination with fallback generator',
+          'Destination Created',
+          { duration: 3000 }
+        );
       }
 
       // Try to save to database
@@ -76,7 +101,12 @@ export const useDestinationStore = create<DestinationState>((set, get) => ({
         // If database save fails, create a local demo destination
         console.warn('Database save failed, creating local destination:', error);
         const demoDestination = get().addDemoDestination(task, userId);
-        set({ error: 'Database connection unavailable. Created local destination.' });
+        
+        useNotificationStore.getState().showWarning(
+          'Destination created locally. Database connection unavailable.',
+          'Local Save'
+        );
+        
         return demoDestination;
       }
 
@@ -85,13 +115,23 @@ export const useDestinationStore = create<DestinationState>((set, get) => ({
         destinations: [data, ...state.destinations]
       }));
 
+      useNotificationStore.getState().showSuccess(
+        `"${aiData.destination_name}" has been added to your destinations!`,
+        'Destination Saved'
+      );
+
       return data;
     } catch (error) {
       console.error('Failed to create destination:', error);
       
       // Create a demo destination as fallback
       const demoDestination = get().addDemoDestination(task, userId);
-      set({ error: 'Failed to create destination. Created demo version.' });
+      
+      useNotificationStore.getState().showError(
+        'Failed to create destination. Created demo version instead.',
+        'Creation Error'
+      );
+      
       return demoDestination;
     } finally {
       set({ isLoading: false });
@@ -122,11 +162,20 @@ export const useDestinationStore = create<DestinationState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
+      // Find the destination name for the notification
+      const destination = get().destinations.find(d => d.id === id);
+      const destinationName = destination?.destination_name || 'destination';
+      
       // If it's a demo destination, just remove from local state
       if (id.startsWith('demo-')) {
         set(state => ({
           destinations: state.destinations.filter(d => d.id !== id)
         }));
+        
+        useNotificationStore.getState().showSuccess(
+          `"${destinationName}" has been removed`,
+          'Destination Deleted'
+        );
         return;
       }
 
@@ -138,6 +187,15 @@ export const useDestinationStore = create<DestinationState>((set, get) => ({
 
       if (error) {
         console.warn('Database delete failed, removing locally:', error);
+        useNotificationStore.getState().showWarning(
+          'Database connection issue. Removed locally.',
+          'Delete Warning'
+        );
+      } else {
+        useNotificationStore.getState().showSuccess(
+          `"${destinationName}" has been permanently deleted`,
+          'Destination Deleted'
+        );
       }
 
       // Remove from local state regardless
@@ -146,11 +204,16 @@ export const useDestinationStore = create<DestinationState>((set, get) => ({
       }));
     } catch (error) {
       console.error('Failed to delete destination:', error);
+      
       // Still remove from local state
       set(state => ({
         destinations: state.destinations.filter(d => d.id !== id)
       }));
-      set({ error: error instanceof Error ? error.message : 'Failed to delete destination' });
+      
+      useNotificationStore.getState().showError(
+        'Failed to delete destination from database, but removed locally.',
+        'Delete Error'
+      );
     } finally {
       set({ isLoading: false });
     }

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { useNotificationStore } from './notificationStore';
 import type { User } from '../types';
 
 interface UserState {
@@ -50,6 +51,11 @@ export const useUserStore = create<UserState>((set, get) => ({
       authMode: 'demo',
       error: null 
     });
+
+    useNotificationStore.getState().showInfo(
+      'You\'re now in demo mode. Your data won\'t be permanently saved.',
+      'Demo Mode Activated'
+    );
   },
 
   saveLighthouseGoal: async () => {
@@ -63,6 +69,11 @@ export const useUserStore = create<UserState>((set, get) => ({
         // In demo mode, just store locally
         localStorage.setItem('demo-lighthouse-goal', lighthouseGoal);
         set({ isLoading: false });
+        
+        useNotificationStore.getState().showSuccess(
+          'Your lighthouse goal has been saved locally!',
+          'Goal Saved'
+        );
         return;
       }
 
@@ -75,11 +86,20 @@ export const useUserStore = create<UserState>((set, get) => ({
         });
 
       if (error) throw error;
+
+      useNotificationStore.getState().showSuccess(
+        'Your lighthouse goal has been saved to the database!',
+        'Goal Saved'
+      );
     } catch (error) {
       console.error('Failed to save lighthouse goal:', error);
       // Fallback to local storage
       localStorage.setItem('demo-lighthouse-goal', lighthouseGoal);
-      set({ error: 'Database unavailable. Goal saved locally.' });
+      
+      useNotificationStore.getState().showWarning(
+        'Database unavailable. Goal saved locally instead.',
+        'Fallback Save'
+      );
     } finally {
       set({ isLoading: false });
     }
@@ -129,6 +149,11 @@ export const useUserStore = create<UserState>((set, get) => ({
           console.warn('Failed to load user profile:', profileError);
           // Don't fail the sign-in for this
         }
+
+        useNotificationStore.getState().showSuccess(
+          `Welcome back, ${data.user.email}!`,
+          'Sign In Successful'
+        );
       }
     } catch (error) {
       console.error('Sign in error:', error);
@@ -192,7 +217,16 @@ export const useUserStore = create<UserState>((set, get) => ({
         
         // If email confirmation is required, let user know
         if (!data.session) {
-          set({ error: 'Please check your email and click the confirmation link to complete your account setup.' });
+          useNotificationStore.getState().showInfo(
+            'Please check your email and click the confirmation link to complete your account setup.',
+            'Email Confirmation Required',
+            { autoClose: false }
+          );
+        } else {
+          useNotificationStore.getState().showSuccess(
+            `Account created successfully! Welcome, ${data.user.email}!`,
+            'Sign Up Successful'
+          );
         }
       }
     } catch (error) {
@@ -235,6 +269,11 @@ export const useUserStore = create<UserState>((set, get) => ({
         isAuthenticated: false,
         authMode: 'supabase'
       });
+
+      useNotificationStore.getState().showSuccess(
+        'You have been signed out successfully.',
+        'Sign Out Complete'
+      );
     } catch (error) {
       console.error('Sign out error:', error);
       // Force sign out locally even if server call fails
@@ -245,6 +284,11 @@ export const useUserStore = create<UserState>((set, get) => ({
         authMode: 'supabase',
         error: 'Sign out completed locally. You may need to clear your browser cache.'
       });
+
+      useNotificationStore.getState().showWarning(
+        'Sign out completed locally. You may need to clear your browser cache.',
+        'Partial Sign Out'
+      );
     } finally {
       set({ isLoading: false });
     }

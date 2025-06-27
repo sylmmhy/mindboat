@@ -10,6 +10,7 @@ import { WeatherSystem } from './WeatherSystem';
 import { useVoyageStore } from '../../stores/voyageStore';
 import { useDistraction } from '../../hooks/useDistraction';
 import { useAudio } from '../../hooks/useAudio';
+import { useNotificationStore } from '../../stores/notificationStore';
 import type { Destination } from '../../types';
 
 interface SailingModeProps {
@@ -27,6 +28,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const [inspirationNotes, setInspirationNotes] = useState<Array<{content: string, type: 'text' | 'voice', timestamp: number}>>([]);
   
   const { currentVoyage, distractionCount, endVoyage } = useVoyageStore();
+  const { showSuccess, showInfo } = useNotificationStore();
   const { 
     isDistracted, 
     isMonitoring, 
@@ -60,6 +62,13 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       setShowSeagull(true);
     }, 300000); // 5 minutes
     
+    // Show initial sailing notification
+    showInfo(
+      'Your voyage has begun! Stay focused on your destination.',
+      'Sailing Started',
+      { duration: 4000 }
+    );
+    
     return () => {
       stopMonitoring();
       stopAmbientSound();
@@ -67,7 +76,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         clearTimeout(seagullTimerRef.current);
       }
     };
-  }, [startMonitoring, stopMonitoring, startAmbientSound, stopAmbientSound, isExploring]);
+  }, [startMonitoring, stopMonitoring, startAmbientSound, stopAmbientSound, isExploring, showInfo]);
 
   // Timer effect
   useEffect(() => {
@@ -75,7 +84,17 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       intervalRef.current = setInterval(() => {
         const startTime = new Date(currentVoyage.start_time).getTime();
         const now = Date.now();
-        setElapsedTime(Math.floor((now - startTime) / 1000));
+        const elapsed = Math.floor((now - startTime) / 1000);
+        setElapsedTime(elapsed);
+        
+        // Show milestone notifications
+        if (elapsed === 600) { // 10 minutes
+          showSuccess('10 minutes of focused sailing!', 'Milestone Reached');
+        } else if (elapsed === 1200) { // 20 minutes
+          showSuccess('20 minutes of deep focus!', 'Great Progress');
+        } else if (elapsed === 1800) { // 30 minutes
+          showSuccess('30 minutes of sustained focus!', 'Excellent Work');
+        }
       }, 1000);
     }
 
@@ -84,7 +103,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         clearInterval(intervalRef.current);
       }
     };
-  }, [currentVoyage]);
+  }, [currentVoyage, showSuccess]);
 
   // Distraction alert effect
   useEffect(() => {
@@ -142,6 +161,18 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       stopMonitoring();
       setWeatherMood('cloudy');
       setAudioWeatherMood('cloudy');
+      
+      showInfo(
+        'Exploration mode activated. Feel free to explore!',
+        'Exploring',
+        { duration: 3000 }
+      );
+    } else {
+      showSuccess(
+        'Back on course! Keep up the great focus.',
+        'Course Corrected',
+        { duration: 3000 }
+      );
     }
   };
 
@@ -150,6 +181,11 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     startMonitoring();
     setWeatherMood('sunny');
     setAudioWeatherMood('sunny');
+    
+    showSuccess(
+      'Welcome back! Resuming focused sailing.',
+      'Returned to Course'
+    );
   };
 
   const handleCaptureInspiration = (content: string, type: 'text' | 'voice') => {
@@ -162,6 +198,11 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     
     // Show seagull with encouraging message
     setShowSeagull(true);
+    
+    showSuccess(
+      `${type === 'voice' ? 'Voice note' : 'Text note'} captured successfully!`,
+      'Inspiration Saved'
+    );
   };
 
   const formatTime = (seconds: number) => {

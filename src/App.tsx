@@ -7,9 +7,11 @@ import { VoyagePreparation } from './components/sailing/VoyagePreparation';
 import { SailingMode } from './components/sailing/SailingMode';
 import { VoyageComplete } from './components/sailing/VoyageComplete';
 import { GrandMap } from './components/visualization/GrandMap';
+import { NotificationSystem } from './components/ui/NotificationSystem';
 import { useUserStore } from './stores/userStore';
 import { useDestinationStore } from './stores/destinationStore';
 import { useVoyageStore } from './stores/voyageStore';
+import { useNotificationStore } from './stores/notificationStore';
 import type { Destination } from './types';
 
 type AppState = 'auth' | 'lighthouse' | 'destinations' | 'voyage-prep' | 'sailing' | 'voyage-complete' | 'map';
@@ -27,6 +29,7 @@ function App() {
   
   const { destinations, loadDestinations } = useDestinationStore();
   const { currentVoyage, voyageHistory, startVoyage, endVoyage } = useVoyageStore();
+  const { showSuccess, showError, showInfo } = useNotificationStore();
   
   const [appState, setAppState] = useState<AppState>('auth');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
@@ -48,6 +51,20 @@ function App() {
     if (!initializationComplete) return;
 
     if (isAuthenticated && user) {
+      // Show welcome notification
+      if (authMode === 'demo') {
+        showInfo(
+          'You\'re in demo mode. Your progress won\'t be saved permanently.',
+          'Welcome to MindBoat!',
+          { duration: 6000 }
+        );
+      } else {
+        showSuccess(
+          `Welcome back, ${user.email}!`,
+          'Successfully signed in'
+        );
+      }
+
       // Load user data
       if (authMode === 'supabase') {
         loadDestinations(user.id);
@@ -59,6 +76,7 @@ function App() {
       } else if (currentVoyage && appState !== 'sailing') {
         // If there's an active voyage and we're not already in sailing mode
         setAppState('sailing');
+        showInfo('Resuming your active voyage...', 'Welcome back');
       } else if (appState === 'auth') {
         // Only set to voyage-prep if we're coming from auth
         setAppState('voyage-prep');
@@ -67,6 +85,13 @@ function App() {
       setAppState('auth');
     }
   }, [isAuthenticated, user, lighthouseGoal, currentVoyage, authMode, initializationComplete]);
+
+  // Show auth errors as notifications
+  useEffect(() => {
+    if (authError && initializationComplete) {
+      showError(authError, 'Authentication Error');
+    }
+  }, [authError, initializationComplete, showError]);
 
   // Show loading screen during initialization
   if (!initializationComplete || isLoading) {
@@ -96,6 +121,8 @@ function App() {
   };
 
   const handleLighthouseComplete = () => {
+    showSuccess('Your lighthouse goal has been set!', 'Goal Saved');
+    
     // Skip destinations if user already has some, go straight to voyage prep
     if (destinations.length > 0) {
       setAppState('voyage-prep');
@@ -105,6 +132,7 @@ function App() {
   };
 
   const handleDestinationsComplete = () => {
+    showSuccess('Ready to start your first voyage!', 'Destinations Created');
     setAppState('voyage-prep');
   };
 
@@ -117,11 +145,20 @@ function App() {
       // Start the voyage in the store
       await startVoyage(destination.id, user.id, 25); // Default 25 minutes
       
+      showSuccess(
+        `Sailing to ${destination.destination_name}`,
+        'Voyage Started',
+        { duration: 3000 }
+      );
+      
       // Transition to sailing mode
       setAppState('sailing');
     } catch (error) {
       console.error('Failed to start voyage:', error);
-      // Handle error - maybe show a notification
+      showError(
+        'Failed to start your voyage. Please try again.',
+        'Voyage Error'
+      );
     }
   };
 
@@ -130,6 +167,11 @@ function App() {
       try {
         // End the voyage in the store
         await endVoyage();
+        
+        showSuccess(
+          'Your voyage has been completed successfully!',
+          'Voyage Complete'
+        );
         
         // Set completed voyage data for the completion screen
         setCompletedVoyage({
@@ -141,7 +183,10 @@ function App() {
         setAppState('voyage-complete');
       } catch (error) {
         console.error('Failed to end voyage:', error);
-        // Handle error gracefully
+        showError(
+          'Failed to save your voyage progress.',
+          'Save Error'
+        );
         setAppState('voyage-prep');
       }
     }
@@ -205,6 +250,9 @@ function App() {
       {appState === 'map' && (
         <GrandMap onBack={handleBackToPrep} />
       )}
+      
+      {/* Global Notification System */}
+      <NotificationSystem />
     </div>
   );
 }
