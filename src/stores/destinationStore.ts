@@ -59,11 +59,10 @@ export const useDestinationStore = create<DestinationState>((set, get) => ({
         aiData = fallbackDestination;
       }
 
-      // Save to database
+      // Save to database - user_id will be automatically set by the database default
       const { data, error } = await supabase
         .from('destinations')
         .insert({
-          user_id: userId,
           original_task: task,
           destination_name: aiData.destination_name,
           description: aiData.description,
