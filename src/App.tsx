@@ -3,13 +3,24 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthForm } from './components/auth/AuthForm';
 import { LighthouseGoal } from './components/onboarding/LighthouseGoal';
 import { CreateDestination } from './components/onboarding/CreateDestination';
+import { VoyagePreparation } from './components/sailing/VoyagePreparation';
+import { SailingMode } from './components/sailing/SailingMode';
+import { VoyageComplete } from './components/sailing/VoyageComplete';
+import { GrandMap } from './components/visualization/GrandMap';
 import { useUserStore } from './stores/userStore';
 import { useDestinationStore } from './stores/destinationStore';
+import { useVoyageStore } from './stores/voyageStore';
+import type { Destination } from './types';
+
+type AppState = 'auth' | 'lighthouse' | 'destinations' | 'voyage-prep' | 'sailing' | 'voyage-complete' | 'map';
 
 function App() {
   const { user, lighthouseGoal, initialize, isLoading } = useUserStore();
-  const { loadDestinations } = useDestinationStore();
-  const [onboardingStep, setOnboardingStep] = useState<'auth' | 'lighthouse' | 'destinations' | 'complete'>('auth');
+  const { destinations, loadDestinations } = useDestinationStore();
+  const { currentVoyage, voyageHistory } = useVoyageStore();
+  const [appState, setAppState] = useState<AppState>('auth');
+  const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
+  const [completedVoyage, setCompletedVoyage] = useState<any>(null);
 
   useEffect(() => {
     initialize();
@@ -19,16 +30,20 @@ function App() {
     if (user) {
       loadDestinations(user.id);
       
-      // Determine onboarding step
+      // Determine app state based on user progress
       if (!lighthouseGoal) {
-        setOnboardingStep('lighthouse');
+        setAppState('lighthouse');
+      } else if (destinations.length === 0) {
+        setAppState('destinations');
+      } else if (currentVoyage) {
+        setAppState('sailing');
       } else {
-        setOnboardingStep('destinations');
+        setAppState('voyage-prep');
       }
     } else {
-      setOnboardingStep('auth');
+      setAppState('auth');
     }
-  }, [user, lighthouseGoal, loadDestinations]);
+  }, [user, lighthouseGoal, destinations, currentVoyage, loadDestinations]);
 
   if (isLoading) {
     return (
@@ -40,46 +55,84 @@ function App() {
 
   const handleAuthSuccess = () => {
     if (!lighthouseGoal) {
-      setOnboardingStep('lighthouse');
+      setAppState('lighthouse');
+    } else if (destinations.length === 0) {
+      setAppState('destinations');
     } else {
-      setOnboardingStep('destinations');
+      setAppState('voyage-prep');
     }
   };
 
   const handleLighthouseComplete = () => {
-    setOnboardingStep('destinations');
+    setAppState('destinations');
   };
 
   const handleDestinationsComplete = () => {
-    setOnboardingStep('complete');
+    setAppState('voyage-prep');
+  };
+
+  const handleStartVoyage = (destination: Destination) => {
+    setSelectedDestination(destination);
+    setAppState('sailing');
+  };
+
+  const handleEndVoyage = () => {
+    if (currentVoyage && selectedDestination) {
+      setCompletedVoyage({
+        ...currentVoyage,
+        destination: selectedDestination
+      });
+      setAppState('voyage-complete');
+    }
+  };
+
+  const handleVoyageCompleteNext = () => {
+    setAppState('map');
+  };
+
+  const handleBackToPrep = () => {
+    setSelectedDestination(null);
+    setCompletedVoyage(null);
+    setAppState('voyage-prep');
   };
 
   return (
-    <Router>
-      <div className="App">
-        {onboardingStep === 'auth' && (
-          <AuthForm onSuccess={handleAuthSuccess} />
-        )}
-        
-        {onboardingStep === 'lighthouse' && (
-          <LighthouseGoal onComplete={handleLighthouseComplete} />
-        )}
-        
-        {onboardingStep === 'destinations' && (
-          <CreateDestination onComplete={handleDestinationsComplete} />
-        )}
-        
-        {onboardingStep === 'complete' && (
-          <div className="min-h-screen bg-gradient-to-br from-green-900 to-blue-900 flex items-center justify-center">
-            <div className="text-center text-white">
-              <h1 className="text-4xl font-bold mb-4">准备就绪！</h1>
-              <p className="text-xl">你的MindBoat已经准备好启航了</p>
-              <p className="text-lg mt-4 opacity-75">即将推出完整的航行体验...</p>
-            </div>
-          </div>
-        )}
-      </div>
-    </Router>
+    <div className="App">
+      {appState === 'auth' && (
+        <AuthForm onSuccess={handleAuthSuccess} />
+      )}
+      
+      {appState === 'lighthouse' && (
+        <LighthouseGoal onComplete={handleLighthouseComplete} />
+      )}
+      
+      {appState === 'destinations' && (
+        <CreateDestination onComplete={handleDestinationsComplete} />
+      )}
+      
+      {appState === 'voyage-prep' && (
+        <VoyagePreparation onStartVoyage={handleStartVoyage} />
+      )}
+      
+      {appState === 'sailing' && selectedDestination && (
+        <SailingMode 
+          destination={selectedDestination} 
+          onEndVoyage={handleEndVoyage}
+        />
+      )}
+      
+      {appState === 'voyage-complete' && completedVoyage && (
+        <VoyageComplete
+          voyage={completedVoyage}
+          destination={completedVoyage.destination}
+          onContinue={handleVoyageCompleteNext}
+        />
+      )}
+      
+      {appState === 'map' && (
+        <GrandMap onBack={handleBackToPrep} />
+      )}
+    </div>
   );
 }
 
