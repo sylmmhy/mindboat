@@ -204,14 +204,18 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
       distractionStartTime.current = Date.now();
       setLastDistractionType('tab_switch');
       
-      // Reduced timeout to 3 seconds for faster detection
+      // Set timeout to 5 seconds for detection
       distractionTimeoutRef.current = setTimeout(() => {
-        if (!isDistractedRef.current && distractionStartTime.current) {
+        if (!isDistractedRef.current) {
           debugLog('Tab switch distraction triggered after timeout');
           setIsDistracted(true);
-          // Don't record here - wait for user to return to record complete distraction
+          // Record the start of distraction immediately
+          recordDistraction({
+            type: 'tab_switch',
+            timestamp: distractionStartTime.current!,
+          });
         }
-      }, 3000); // Reduced from 10 seconds to 3 seconds
+      }, 5000);
     } else {
       // Tab became visible - user returned
       debugLog('Tab became visible');
@@ -221,24 +225,34 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
         debugLog('Cleared distraction timeout');
       }
       
-      // Record the distraction if one was active (either from timeout or immediate)
+      // If there was an active distraction, record its completion
       if (distractionStartTime.current) {
         const duration = Math.floor((Date.now() - distractionStartTime.current) / 1000);
         
-        // Only record if the distraction lasted more than 2 seconds to avoid false positives
-        if (duration >= 2) {
+        // Only record if the distraction lasted more than 3 seconds to avoid false positives
+        if (duration >= 3) {
           debugLog('Recording completed distraction', { duration });
-          recordDistraction({
-            type: 'tab_switch',
-            timestamp: distractionStartTime.current,
-            duration,
-          });
-        } else {
-          debugLog('Distraction too short, not recording', { duration });
+          
+          // If distraction was already recorded (via timeout), update it with duration
+          if (isDistractedRef.current) {
+            // Record completion with duration
+            recordDistraction({
+              type: 'tab_switch',
+              timestamp: distractionStartTime.current,
+              duration,
+            });
+          } else {
+            // Record complete distraction (start + end in one record)
+            recordDistraction({
+              type: 'tab_switch',
+              timestamp: distractionStartTime.current,
+              duration,
+            });
+          }
         }
       }
       
-      // Always clear distraction when returning to tab
+      // Clear distraction state when returning to tab
       if (isDistractedRef.current) {
         debugLog('Clearing distraction on tab return');
         setIsDistracted(false);

@@ -246,6 +246,9 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
     };
 
     try {
+      // Determine if this is a completion update or new distraction
+      const isCompletion = !!event.duration;
+      
       // Always try to record to database, with fallback for local voyages
       const distractionData = {
         voyage_id: currentVoyage.id,
@@ -255,7 +258,7 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
         position_x: position.x,
         position_y: position.y,
         context_url: window.location.href,
-        is_resolved: !!event.duration, // True if duration is provided (distraction ended)
+        is_resolved: isCompletion,
       };
 
       let recordingSuccessful = false;
@@ -263,27 +266,64 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
       // Try database recording unless it's a local voyage
       if (!currentVoyage.id.startsWith('local-')) {
         try {
-          const { error } = await supabase
-            .from('distraction_events')
-            .insert(distractionData);
+          if (isCompletion) {
+            // Try to update the most recent unresolved distraction of this type
+            const { data: existingEvent, error: findError } = await supabase
+              .from('distraction_events')
+              .select('id')
+              .eq('voyage_id', currentVoyage.id)
+              .eq('type', event.type)
+              .eq('is_resolved', false)
+              .order('detected_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
 
-          if (error) {
-            console.warn('Failed to record distraction in database:', error);
+            if (!findError && existingEvent) {
+              // Update existing event with duration
+              const { error: updateError } = await supabase
+                .from('distraction_events')
+                .update({
+                  duration_seconds: Math.floor(event.duration / 1000),
+                  is_resolved: true,
+                })
+                .eq('id', existingEvent.id);
+              
+              if (!updateError) {
+                recordingSuccessful = true;
+              }
+            } else {
+              // No existing event found, insert new complete record
+              const { error } = await supabase
+                .from('distraction_events')
+                .insert(distractionData);
+              
+              if (!error) {
+                recordingSuccessful = true;
+              }
+            }
           } else {
-            recordingSuccessful = true;
+            // Insert new distraction start event
+            const { error } = await supabase
+              .from('distraction_events')
+              .insert(distractionData);
+            if (!error) {
+              recordingSuccessful = true;
+            }
           }
         } catch (dbError) {
           console.warn('Database error while recording distraction:', dbError);
         }
       }
 
-      // Update local distraction count
-      set(state => ({
-        distractionCount: state.distractionCount + 1
-      }));
+      // Only increment local count for new distractions, not completions
+      if (!isCompletion) {
+        set(state => ({
+          distractionCount: state.distractionCount + 1
+        }));
+      }
 
-      // Only show notification for new distractions (not when resolving)
-      if (!event.duration) {
+      // Show notifications appropriately
+      if (!isCompletion) {
         const distractionMessages = {
           tab_switch: 'Tab switching detected',
           idle: 'Idle time detected',
@@ -295,14 +335,23 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
           recordingSuccessful ? 'Focus Alert (Recorded)' : 'Focus Alert (Local)',
           { duration: 3000 }
         );
+      } else {
+        // Distraction resolved
+        useNotificationStore.getState().showSuccess(
+          'Back on track!',
+          'Focus Restored',
+          { duration: 2000 }
+        );
       }
     } catch (error) {
       console.error('Failed to record distraction:', error);
       
-      // Still update local count even if recording fails
-      set(state => ({
-        distractionCount: state.distractionCount + 1
-      }));
+      // Still update local count for new distractions even if recording fails
+      if (!event.duration) {
+        set(state => ({
+          distractionCount: state.distractionCount + 1
+        }));
+      }
     }
   },
 
