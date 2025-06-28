@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export const useAudio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.2); // Start at 20%
+  const [isMuted, setIsMuted] = useState(false);
+  const [previousVolume, setPreviousVolume] = useState(0.2); // Store volume before muting
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
@@ -53,7 +55,7 @@ export const useAudio = () => {
       filterNodeRef.current.frequency.value = 800;
       filterNodeRef.current.Q.value = 1;
       
-      // Set initial volume (muted)
+      // Set initial volume (start muted)
       gainNodeRef.current.gain.value = 0;
       
       // Connect nodes: Source -> Filter -> Gain -> Destination
@@ -70,6 +72,16 @@ export const useAudio = () => {
       return false;
     }
   }, [createNoiseBuffer]);
+
+  // Update gain based on current volume and mute state
+  const updateGain = useCallback(() => {
+    if (gainNodeRef.current && audioContextRef.current) {
+      const effectiveVolume = isMuted ? 0 : volume;
+      const gainValue = effectiveVolume * 0.3; // Scale to reasonable level
+      gainNodeRef.current.gain.setValueAtTime(gainValue, audioContextRef.current.currentTime);
+      console.log('Gain updated to:', gainValue, 'isMuted:', isMuted, 'volume:', volume);
+    }
+  }, [volume, isMuted]);
 
   // Start playing audio
   const startAmbientSound = useCallback(async () => {
@@ -93,20 +105,17 @@ export const useAudio = () => {
       sourceNodeRef.current.loop = true;
       sourceNodeRef.current.connect(filterNodeRef.current!);
       
-      // Apply current volume
-      if (gainNodeRef.current) {
-        const gainValue = volume === 0 ? 0 : volume * 0.3; // Scale to reasonable level
-        gainNodeRef.current.gain.setValueAtTime(gainValue, audioContextRef.current.currentTime);
-      }
+      // Apply current volume/mute state
+      updateGain();
       
       sourceNodeRef.current.start();
       setIsPlaying(true);
       
-      console.log('Ambient sound started with volume:', volume);
+      console.log('Ambient sound started');
     } catch (error) {
       console.error('Failed to start ambient sound:', error);
     }
-  }, [isPlaying, volume, initializeAudio]);
+  }, [isPlaying, initializeAudio, updateGain]);
 
   // Stop playing audio
   const stopAmbientSound = useCallback(() => {
@@ -124,17 +133,42 @@ export const useAudio = () => {
     }
   }, [isPlaying]);
 
+  // Toggle mute/unmute
+  const toggleMute = useCallback(() => {
+    if (isMuted) {
+      // Unmute: restore previous volume
+      setIsMuted(false);
+      setVolume(previousVolume);
+      console.log('Unmuted, restored volume to:', previousVolume);
+    } else {
+      // Mute: save current volume and set to 0
+      setPreviousVolume(volume);
+      setIsMuted(true);
+      console.log('Muted, saved volume:', volume);
+    }
+  }, [isMuted, volume, previousVolume]);
+
   // Adjust volume
   const adjustVolume = useCallback((newVolume: number) => {
     console.log('Adjusting volume from', volume, 'to', newVolume);
     setVolume(newVolume);
     
-    if (gainNodeRef.current && audioContextRef.current) {
-      const gainValue = newVolume === 0 ? 0 : newVolume * 0.3; // Scale to reasonable level
-      gainNodeRef.current.gain.setValueAtTime(gainValue, audioContextRef.current.currentTime);
-      console.log('Gain set to:', gainValue);
+    // If we're adjusting volume manually, unmute
+    if (isMuted && newVolume > 0) {
+      setIsMuted(false);
     }
-  }, [volume]);
+    
+    // If volume is set to 0, consider it muted
+    if (newVolume === 0 && !isMuted) {
+      setIsMuted(true);
+      setPreviousVolume(volume > 0 ? volume : 0.2);
+    }
+  }, [volume, isMuted]);
+
+  // Update gain whenever volume or mute state changes
+  useEffect(() => {
+    updateGain();
+  }, [updateGain]);
 
   // Set weather mood by adjusting filter frequency
   const setWeatherMood = useCallback((mood: 'sunny' | 'cloudy' | 'rainy' | 'stormy') => {
@@ -184,8 +218,10 @@ export const useAudio = () => {
   return {
     isPlaying,
     volume,
+    isMuted,
     startAmbientSound,
     stopAmbientSound,
+    toggleMute,
     adjustVolume,
     setWeatherMood,
   };

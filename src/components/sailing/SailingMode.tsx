@@ -37,8 +37,10 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const { 
     isPlaying, 
     volume, 
+    isMuted,
     startAmbientSound, 
     stopAmbientSound, 
+    toggleMute,
     adjustVolume, 
     setWeatherMood: setAudioWeatherMood 
   } = useAudio();
@@ -233,15 +235,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     adjustVolume(newVolume);
   };
 
-  // Toggle audio on/off
-  const toggleAudio = () => {
-    if (isPlaying) {
-      stopAmbientSound();
-    } else {
-      startAmbientSound();
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 relative overflow-hidden">
       {/* Weather System */}
@@ -345,12 +338,13 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
         <div className="flex items-center space-x-2">
           <Button
-            onClick={toggleAudio}
+            onClick={toggleMute}
             variant="ghost"
             size="sm"
             className="text-white hover:bg-white/20"
+            title={isMuted ? 'Unmute audio' : 'Mute audio'}
           >
-            {isPlaying ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </Button>
           <Button
             onClick={() => setShowControls(!showControls)}
@@ -378,7 +372,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium mb-3">
-                    Ambient Volume: {Math.round(volume * 100)}%
+                    Ambient Volume: {isMuted ? 'Muted' : `${Math.round(volume * 100)}%`}
                   </label>
                   <div className="relative">
                     {/* Custom styled range input */}
@@ -387,7 +381,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                       min="0"
                       max="1"
                       step="0.05"
-                      value={volume}
+                      value={isMuted ? 0 : volume}
                       onChange={handleVolumeChange}
                       className="volume-slider w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                     />
@@ -403,7 +397,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                     <div>
                       <span className="font-medium text-gray-700">Audio:</span>
                       <span className={`ml-2 ${isPlaying ? 'text-green-600' : 'text-red-600'}`}>
-                        {isPlaying ? 'Playing' : 'Stopped'}
+                        {isPlaying ? (isMuted ? 'Muted' : 'Playing') : 'Stopped'}
                       </span>
                     </div>
                     <div>
@@ -487,7 +481,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       {/* Custom CSS for volume slider */}
       <style jsx>{`
         .volume-slider {
-          background: linear-gradient(to right, #3B82F6 0%, #3B82F6 ${volume * 100}%, #E5E7EB ${volume * 100}%, #E5E7EB 100%);
+          background: linear-gradient(to right, #3B82F6 0%, #3B82F6 ${(isMuted ? 0 : volume) * 100}%, #E5E7EB ${(isMuted ? 0 : volume) * 100}%, #E5E7EB 100%);
         }
         
         .volume-slider::-webkit-slider-thumb {
