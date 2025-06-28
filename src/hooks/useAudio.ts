@@ -3,10 +3,11 @@ import * as Tone from 'tone';
 
 export const useAudio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.1); // Start much quieter
+  const [volume, setVolume] = useState(0.1); // Start at 10%
   const noiseRef = useRef<Tone.Noise | null>(null);
   const filterRef = useRef<Tone.Filter | null>(null);
   const volumeRef = useRef<Tone.Volume | null>(null);
+  const gainRef = useRef<Tone.Gain | null>(null);
 
   useEffect(() => {
     // Initialize audio context and create ambient ocean sounds
@@ -22,12 +23,16 @@ export const useAudio = () => {
           rolloff: -24
         });
         
-        // Create volume control - start very quiet
-        volumeRef.current = new Tone.Volume(-50); // Much quieter initial volume
+        // Create gain control for better volume management
+        gainRef.current = new Tone.Gain(0.1); // Start with low gain
+        
+        // Create volume control
+        volumeRef.current = new Tone.Volume(-60); // Start very quiet
         
         // Connect the audio chain
         noiseRef.current
           .connect(filterRef.current)
+          .connect(gainRef.current)
           .connect(volumeRef.current)
           .toDestination();
           
@@ -49,51 +54,59 @@ export const useAudio = () => {
       if (volumeRef.current) {
         volumeRef.current.dispose();
       }
+      if (gainRef.current) {
+        gainRef.current.dispose();
+      }
     };
   }, []);
 
   const startAmbientSound = useCallback(async () => {
     try {
       await Tone.start();
-      if (noiseRef.current && volumeRef.current) {
-        // Set the initial volume before starting
-        const initialDb = volume === 0 ? -Infinity : -70 + (volume * 40); // Much quieter range
-        volumeRef.current.volume.value = initialDb;
-        
+      if (noiseRef.current && !isPlaying) {
         noiseRef.current.start();
         setIsPlaying(true);
+        
+        // Apply current volume setting
+        adjustVolumeInternal(volume);
       }
     } catch (error) {
       console.warn('Failed to start ambient sound:', error);
     }
-  }, [volume]);
+  }, [volume, isPlaying]);
 
   const stopAmbientSound = useCallback(() => {
-    if (noiseRef.current) {
+    if (noiseRef.current && isPlaying) {
       noiseRef.current.stop();
       setIsPlaying(false);
+    }
+  }, [isPlaying]);
+
+  const adjustVolumeInternal = useCallback((newVolume: number) => {
+    if (gainRef.current && volumeRef.current) {
+      if (newVolume === 0) {
+        // Completely mute
+        gainRef.current.gain.rampTo(0, 0.1);
+        volumeRef.current.volume.rampTo(-Infinity, 0.1);
+      } else {
+        // Scale volume from very quiet to moderate
+        const gainValue = newVolume * 0.3; // Max gain of 0.3
+        const dbValue = -60 + (newVolume * 30); // Scale from -60dB to -30dB
+        
+        gainRef.current.gain.rampTo(gainValue, 0.1);
+        volumeRef.current.volume.rampTo(dbValue, 0.1);
+      }
     }
   }, []);
 
   const adjustVolume = useCallback((newVolume: number) => {
+    console.log('Adjusting volume to:', newVolume); // Debug log
     setVolume(newVolume);
-    if (volumeRef.current) {
-      // Convert 0-1 range to decibels with much quieter scaling
-      let db;
-      if (newVolume === 0) {
-        db = -Infinity; // Mute
-      } else {
-        // Scale from -70dB to -30dB for much quieter and better control
-        db = -70 + (newVolume * 40);
-      }
-      
-      // Use rampTo for smooth volume changes
-      volumeRef.current.volume.rampTo(db, 0.1);
-    }
-  }, []);
+    adjustVolumeInternal(newVolume);
+  }, [adjustVolumeInternal]);
 
   const setWeatherMood = useCallback((mood: 'sunny' | 'cloudy' | 'rainy' | 'stormy') => {
-    if (!filterRef.current || !volumeRef.current) return;
+    if (!filterRef.current) return;
 
     switch (mood) {
       case 'sunny':
