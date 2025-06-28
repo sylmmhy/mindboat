@@ -50,7 +50,10 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
   // Start audio and show initial notification when component mounts
   useEffect(() => {
-    startAmbientSound();
+    // Small delay to ensure audio system is ready
+    const timer = setTimeout(() => {
+      startAmbientSound();
+    }, 500);
     
     // Show seagull after 5 minutes for first-time interaction
     seagullTimerRef.current = setTimeout(() => {
@@ -65,6 +68,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     );
     
     return () => {
+      clearTimeout(timer);
       stopAmbientSound();
       if (seagullTimerRef.current) {
         clearTimeout(seagullTimerRef.current);
@@ -225,7 +229,17 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   // Handle volume change
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = Number(e.target.value);
+    console.log('Volume slider changed to:', newVolume);
     adjustVolume(newVolume);
+  };
+
+  // Toggle audio on/off
+  const toggleAudio = () => {
+    if (isPlaying) {
+      stopAmbientSound();
+    } else {
+      startAmbientSound();
+    }
   };
 
   return (
@@ -331,7 +345,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
         <div className="flex items-center space-x-2">
           <Button
-            onClick={() => isPlaying ? stopAmbientSound() : startAmbientSound()}
+            onClick={toggleAudio}
             variant="ghost"
             size="sm"
             className="text-white hover:bg-white/20"
@@ -358,12 +372,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             exit={{ opacity: 0, y: -20 }}
             className="absolute top-16 right-4 z-20"
           >
-            <Card className="p-4 w-64">
+            <Card className="p-4 w-80">
               <h3 className="font-semibold mb-3">Sailing Controls</h3>
               
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">
+                  <label className="block text-sm font-medium mb-2">
                     Ambient Volume: {Math.round(volume * 100)}%
                   </label>
                   <input
@@ -373,7 +387,10 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                     step="0.05"
                     value={volume}
                     onChange={handleVolumeChange}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, #3B82F6 0%, #3B82F6 ${volume * 100}%, #E5E7EB ${volume * 100}%, #E5E7EB 100%)`
+                    }}
                   />
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
                     <span>Mute</span>
@@ -381,25 +398,25 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                   </div>
                 </div>
                 
-                <div>
-                  <p className="text-sm text-gray-600 mb-2">
-                    Monitoring: {isMonitoring ? 'Active' : 'Inactive'}
+                <div className="border-t pt-3">
+                  <p className="text-sm text-gray-600 mb-1">
+                    <strong>Audio Status:</strong> {isPlaying ? 'Playing' : 'Stopped'}
                   </p>
-                  <p className="text-sm text-gray-600 mb-2">
-                    Mode: {isExploring ? 'Exploration' : 'Focus'}
+                  <p className="text-sm text-gray-600 mb-1">
+                    <strong>Monitoring:</strong> {isMonitoring ? 'Active' : 'Inactive'}
                   </p>
-                  <p className="text-sm text-gray-600 mb-2">
-                    Audio: {isPlaying ? 'Playing' : 'Stopped'}
+                  <p className="text-sm text-gray-600 mb-3">
+                    <strong>Mode:</strong> {isExploring ? 'Exploration' : 'Focus'}
                   </p>
                 </div>
                 
                 {inspirationNotes.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium mb-1">Captured Notes:</p>
-                    <div className="max-h-20 overflow-y-auto text-xs text-gray-600">
+                  <div className="border-t pt-3">
+                    <p className="text-sm font-medium mb-2">Recent Notes:</p>
+                    <div className="max-h-20 overflow-y-auto text-xs text-gray-600 space-y-1">
                       {inspirationNotes.slice(-3).map((note, index) => (
-                        <div key={index} className="mb-1">
-                          {note.type === 'voice' ? '🎤' : '📝'} {note.content.slice(0, 30)}...
+                        <div key={index} className="p-2 bg-gray-50 rounded">
+                          {note.type === 'voice' ? '🎤' : '📝'} {note.content.slice(0, 40)}...
                         </div>
                       ))}
                     </div>
@@ -458,37 +475,37 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
       {/* Custom CSS for slider styling */}
       <style jsx>{`
-        .slider::-webkit-slider-thumb {
+        input[type="range"]::-webkit-slider-thumb {
           appearance: none;
-          height: 16px;
-          width: 16px;
+          height: 20px;
+          width: 20px;
           border-radius: 50%;
           background: #3B82F6;
           cursor: pointer;
           border: 2px solid white;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
         
-        .slider::-moz-range-thumb {
-          height: 16px;
-          width: 16px;
+        input[type="range"]::-moz-range-thumb {
+          height: 20px;
+          width: 20px;
           border-radius: 50%;
           background: #3B82F6;
           cursor: pointer;
           border: 2px solid white;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
         
-        .slider::-webkit-slider-track {
+        input[type="range"]::-webkit-slider-track {
           height: 8px;
           border-radius: 4px;
-          background: #E5E7EB;
+          background: transparent;
         }
         
-        .slider::-moz-range-track {
+        input[type="range"]::-moz-range-track {
           height: 8px;
           border-radius: 4px;
-          background: #E5E7EB;
+          background: transparent;
         }
       `}</style>
     </div>
