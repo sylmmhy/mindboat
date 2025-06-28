@@ -68,11 +68,13 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
   useEffect(() => {
     const fetchAssessmentData = async (retryCount = 0) => {
       const maxRetries = 3;
-      const retryDelay = 1000; // 1 second
+      const retryDelay = 1000;
       
       try {
         setIsLoading(true);
         setError(null);
+  
+        console.log(`Fetching assessment data for voyage ${voyageId} (attempt ${retryCount + 1})`);
   
         // First, ensure voyage statistics are calculated
         try {
@@ -81,11 +83,11 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
           
           if (statsError) {
             console.warn('Failed to calculate voyage statistics:', statsError);
-            // Continue anyway - maybe stats were already calculated
+          } else {
+            console.log('✅ Statistics calculation completed');
           }
         } catch (statsError) {
           console.warn('Error calling calculate_voyage_statistics:', statsError);
-          // Continue anyway
         }
   
         // Wait a moment for database consistency
@@ -93,20 +95,25 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
           await new Promise(resolve => setTimeout(resolve, 500));
         }
   
+        // Fetch assessment data
         const { data, error: fetchError } = await supabase
           .rpc('get_voyage_assessment_data', { voyage_id_param: voyageId });
   
         if (fetchError) {
+          console.error('Assessment data fetch error:', fetchError);
           throw fetchError;
         }
   
         if (!data) {
+          console.error('No assessment data returned');
           throw new Error('No assessment data found');
         }
   
-        // Validate data structure
+        console.log('✅ Raw assessment data received:', data);
+  
+        // Validate and normalize data structure
         if (!data.voyage || !data.distractions) {
-          console.warn('Incomplete assessment data:', data);
+          console.warn('⚠️ Incomplete assessment data structure:', data);
           
           if (retryCount < maxRetries) {
             console.log(`Retrying assessment data fetch (${retryCount + 1}/${maxRetries})`);
@@ -117,12 +124,20 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
           throw new Error('Incomplete assessment data received');
         }
   
-        // Ensure voyage.voyage exists (handle nested structure)
-        const normalizedData = {
-          ...data,
-          voyage: data.voyage.voyage ? data.voyage : { voyage: data.voyage, destination: null }
-        };
+        // Handle nested voyage structure
+        let normalizedData = data;
+        if (data.voyage && !data.voyage.voyage) {
+          // If voyage data is not nested properly, wrap it
+          normalizedData = {
+            ...data,
+            voyage: {
+              voyage: data.voyage,
+              destination: data.voyage.destination || null
+            }
+          };
+        }
   
+        console.log('✅ Normalized assessment data:', normalizedData);
         setAssessmentData(normalizedData);
         
       } catch (err) {
@@ -142,6 +157,7 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
         
         // Try to get basic voyage data as fallback
         if (retryCount === 0) {
+          console.log('Attempting fallback data fetch...');
           try {
             const { data: basicVoyage, error: basicError } = await supabase
               .from('voyages')
@@ -153,7 +169,7 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
               .single();
   
             if (!basicError && basicVoyage) {
-              console.log('Using basic voyage data as fallback');
+              console.log('✅ Using basic voyage data as fallback:', basicVoyage);
               setAssessmentData({
                 voyage: {
                   voyage: basicVoyage,
