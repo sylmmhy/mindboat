@@ -181,6 +181,7 @@ function App() {
           });
         } else {
           // Fallback if endVoyage doesn't return updated voyage
+          const { distractionCount } = useVoyageStore.getState();
           setCompletedVoyage({
             ...currentVoyage,
             destination: selectedDestination,
@@ -188,7 +189,8 @@ function App() {
             actual_duration: currentVoyage.start_time ? 
               Math.floor((Date.now() - new Date(currentVoyage.start_time).getTime()) / 60000) : 0,
             end_time: new Date().toISOString(),
-            status: 'completed' as const
+            status: 'completed' as const,
+            distraction_count: distractionCount
           });
         }
         

@@ -206,13 +206,10 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
       
       // Reduced timeout to 3 seconds for faster detection
       distractionTimeoutRef.current = setTimeout(() => {
-        if (!isDistractedRef.current) {
+        if (!isDistractedRef.current && distractionStartTime.current) {
           debugLog('Tab switch distraction triggered after timeout');
           setIsDistracted(true);
-          recordDistraction({
-            type: 'tab_switch',
-            timestamp: distractionStartTime.current!,
-          });
+          // Don't record here - wait for user to return to record complete distraction
         }
       }, 3000); // Reduced from 10 seconds to 3 seconds
     } else {
@@ -224,15 +221,21 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
         debugLog('Cleared distraction timeout');
       }
       
-      // Record the distraction if one was active
-      if (isDistractedRef.current && distractionStartTime.current) {
+      // Record the distraction if one was active (either from timeout or immediate)
+      if (distractionStartTime.current) {
         const duration = Math.floor((Date.now() - distractionStartTime.current) / 1000);
-        debugLog('Recording completed distraction', { duration });
-        recordDistraction({
-          type: 'tab_switch',
-          timestamp: distractionStartTime.current,
-          duration,
-        });
+        
+        // Only record if the distraction lasted more than 2 seconds to avoid false positives
+        if (duration >= 2) {
+          debugLog('Recording completed distraction', { duration });
+          recordDistraction({
+            type: 'tab_switch',
+            timestamp: distractionStartTime.current,
+            duration,
+          });
+        } else {
+          debugLog('Distraction too short, not recording', { duration });
+        }
       }
       
       // Always clear distraction when returning to tab
