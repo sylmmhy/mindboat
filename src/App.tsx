@@ -244,7 +244,6 @@ function App() {
         />
       )}
       
-      {appState === 'voyage-complete' && completedVoyage && (
       {appState === 'voyage-complete' && completedVoyageId && (
         <VoyageComplete
           voyageId={completedVoyageId}
