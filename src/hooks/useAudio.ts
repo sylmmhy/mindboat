@@ -74,9 +74,18 @@ export const useAudio = () => {
   const adjustVolume = useCallback((newVolume: number) => {
     setVolume(newVolume);
     if (volumeRef.current) {
-      // Convert 0-1 range to decibels
-      const db = newVolume === 0 ? -Infinity : -40 + (newVolume * 20);
-      volumeRef.current.volume.value = db;
+      // Convert 0-1 range to decibels with better scaling
+      // Use a more gradual curve for better volume control
+      let db;
+      if (newVolume === 0) {
+        db = -Infinity; // Mute
+      } else {
+        // Scale from -60dB to -10dB for better control
+        db = -60 + (newVolume * 50);
+      }
+      
+      // Use rampTo for smooth volume changes
+      volumeRef.current.volume.rampTo(db, 0.1);
     }
   }, []);
 
@@ -85,20 +94,16 @@ export const useAudio = () => {
 
     switch (mood) {
       case 'sunny':
-        filterRef.current.frequency.value = 1200;
-        volumeRef.current.volume.rampTo(-25, 1);
+        filterRef.current.frequency.rampTo(1200, 1);
         break;
       case 'cloudy':
-        filterRef.current.frequency.value = 800;
-        volumeRef.current.volume.rampTo(-20, 1);
+        filterRef.current.frequency.rampTo(800, 1);
         break;
       case 'rainy':
-        filterRef.current.frequency.value = 400;
-        volumeRef.current.volume.rampTo(-15, 1);
+        filterRef.current.frequency.rampTo(400, 1);
         break;
       case 'stormy':
-        filterRef.current.frequency.value = 200;
-        volumeRef.current.volume.rampTo(-10, 1);
+        filterRef.current.frequency.rampTo(200, 1);
         break;
     }
   }, []);
