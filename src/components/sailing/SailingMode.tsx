@@ -222,6 +222,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     }
   };
 
+  // Handle volume change
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = Number(e.target.value);
+    adjustVolume(newVolume);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 relative overflow-hidden">
       {/* Weather System */}
@@ -357,16 +363,22 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
               
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Ambient Volume</label>
+                  <label className="block text-sm font-medium mb-1">
+                    Ambient Volume: {Math.round(volume * 100)}%
+                  </label>
                   <input
                     type="range"
                     min="0"
                     max="1"
-                    step="0.1"
+                    step="0.05"
                     value={volume}
-                    onChange={(e) => adjustVolume(Number(e.target.value))}
-                    className="w-full"
+                    onChange={handleVolumeChange}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                   />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Mute</span>
+                    <span>Max</span>
+                  </div>
                 </div>
                 
                 <div>
@@ -375,6 +387,9 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                   </p>
                   <p className="text-sm text-gray-600 mb-2">
                     Mode: {isExploring ? 'Exploration' : 'Focus'}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Audio: {isPlaying ? 'Playing' : 'Stopped'}
                   </p>
                 </div>
                 
@@ -440,6 +455,42 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           </p>
         </div>
       </div>
+
+      {/* Custom CSS for slider styling */}
+      <style jsx>{`
+        .slider::-webkit-slider-thumb {
+          appearance: none;
+          height: 16px;
+          width: 16px;
+          border-radius: 50%;
+          background: #3B82F6;
+          cursor: pointer;
+          border: 2px solid white;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .slider::-moz-range-thumb {
+          height: 16px;
+          width: 16px;
+          border-radius: 50%;
+          background: #3B82F6;
+          cursor: pointer;
+          border: 2px solid white;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .slider::-webkit-slider-track {
+          height: 8px;
+          border-radius: 4px;
+          background: #E5E7EB;
+        }
+        
+        .slider::-moz-range-track {
+          height: 8px;
+          border-radius: 4px;
+          background: #E5E7EB;
+        }
+      `}</style>
     </div>
   );
 };
