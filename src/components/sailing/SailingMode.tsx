@@ -53,7 +53,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     // Small delay to ensure audio system is ready
     const timer = setTimeout(() => {
       startAmbientSound();
-    }, 500);
+    }, 1000);
     
     // Show seagull after 5 minutes for first-time interaction
     seagullTimerRef.current = setTimeout(() => {
@@ -380,18 +380,21 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                   <label className="block text-sm font-medium mb-2">
                     Ambient Volume: {Math.round(volume * 100)}%
                   </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={volume}
-                    onChange={handleVolumeChange}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    style={{
-                      background: `linear-gradient(to right, #3B82F6 0%, #3B82F6 ${volume * 100}%, #E5E7EB ${volume * 100}%, #E5E7EB 100%)`
-                    }}
-                  />
+                  <div className="relative">
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={volume}
+                      onChange={handleVolumeChange}
+                      className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    />
+                    <div 
+                      className="absolute top-0 left-0 h-3 bg-blue-500 rounded-lg pointer-events-none"
+                      style={{ width: `${volume * 100}%` }}
+                    />
+                  </div>
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
                     <span>Mute</span>
                     <span>Max</span>
@@ -475,7 +478,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
       {/* Custom CSS for slider styling */}
       <style jsx>{`
-        input[type="range"]::-webkit-slider-thumb {
+        .slider::-webkit-slider-thumb {
           appearance: none;
           height: 20px;
           width: 20px;
@@ -486,7 +489,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
         
-        input[type="range"]::-moz-range-thumb {
+        .slider::-moz-range-thumb {
           height: 20px;
           width: 20px;
           border-radius: 50%;
@@ -494,18 +497,20 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           cursor: pointer;
           border: 2px solid white;
           box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          border: none;
         }
         
-        input[type="range"]::-webkit-slider-track {
-          height: 8px;
-          border-radius: 4px;
+        .slider::-webkit-slider-track {
+          height: 12px;
+          border-radius: 6px;
           background: transparent;
         }
         
-        input[type="range"]::-moz-range-track {
-          height: 8px;
-          border-radius: 4px;
+        .slider::-moz-range-track {
+          height: 12px;
+          border-radius: 6px;
           background: transparent;
+          border: none;
         }
       `}</style>
     </div>
