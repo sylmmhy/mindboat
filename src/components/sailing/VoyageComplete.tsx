@@ -66,31 +66,124 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchAssessmentData = async () => {
+    const fetchAssessmentData = async (retryCount = 0) => {
+      const maxRetries = 3;
+      const retryDelay = 1000; // 1 second
+      
       try {
         setIsLoading(true);
         setError(null);
-
+  
+        // First, ensure voyage statistics are calculated
+        try {
+          const { error: statsError } = await supabase
+            .rpc('calculate_voyage_statistics', { voyage_id_param: voyageId });
+          
+          if (statsError) {
+            console.warn('Failed to calculate voyage statistics:', statsError);
+            // Continue anyway - maybe stats were already calculated
+          }
+        } catch (statsError) {
+          console.warn('Error calling calculate_voyage_statistics:', statsError);
+          // Continue anyway
+        }
+  
+        // Wait a moment for database consistency
+        if (retryCount === 0) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+  
         const { data, error: fetchError } = await supabase
           .rpc('get_voyage_assessment_data', { voyage_id_param: voyageId });
-
+  
         if (fetchError) {
           throw fetchError;
         }
-
+  
         if (!data) {
           throw new Error('No assessment data found');
         }
-
-        setAssessmentData(data);
+  
+        // Validate data structure
+        if (!data.voyage || !data.distractions) {
+          console.warn('Incomplete assessment data:', data);
+          
+          if (retryCount < maxRetries) {
+            console.log(`Retrying assessment data fetch (${retryCount + 1}/${maxRetries})`);
+            setTimeout(() => fetchAssessmentData(retryCount + 1), retryDelay * (retryCount + 1));
+            return;
+          }
+          
+          throw new Error('Incomplete assessment data received');
+        }
+  
+        // Ensure voyage.voyage exists (handle nested structure)
+        const normalizedData = {
+          ...data,
+          voyage: data.voyage.voyage ? data.voyage : { voyage: data.voyage, destination: null }
+        };
+  
+        setAssessmentData(normalizedData);
+        
       } catch (err) {
         console.error('Failed to fetch voyage assessment data:', err);
+        
+        // Retry logic for network/temporary issues
+        if (retryCount < maxRetries && 
+            (err instanceof Error && 
+             (err.message.includes('network') || 
+              err.message.includes('timeout') ||
+              err.message.includes('connection')))) {
+          
+          console.log(`Retrying due to network issue (${retryCount + 1}/${maxRetries})`);
+          setTimeout(() => fetchAssessmentData(retryCount + 1), retryDelay * (retryCount + 1));
+          return;
+        }
+        
+        // Try to get basic voyage data as fallback
+        if (retryCount === 0) {
+          try {
+            const { data: basicVoyage, error: basicError } = await supabase
+              .from('voyages')
+              .select(`
+                *,
+                destination:destinations(*)
+              `)
+              .eq('id', voyageId)
+              .single();
+  
+            if (!basicError && basicVoyage) {
+              console.log('Using basic voyage data as fallback');
+              setAssessmentData({
+                voyage: {
+                  voyage: basicVoyage,
+                  destination: basicVoyage.destination
+                },
+                distractions: {
+                  events: [],
+                  summary: {
+                    total_count: basicVoyage.distraction_count || 0,
+                    by_type: {},
+                    total_time: basicVoyage.total_distraction_time || 0,
+                    avg_duration: basicVoyage.avg_distraction_duration || 0,
+                    return_rate: basicVoyage.return_to_course_rate || 0
+                  }
+                },
+                exploration_notes: []
+              });
+              return;
+            }
+          } catch (fallbackError) {
+            console.error('Fallback data fetch also failed:', fallbackError);
+          }
+        }
+        
         setError(err instanceof Error ? err.message : 'Failed to load voyage data');
       } finally {
         setIsLoading(false);
       }
     };
-
+  
     if (voyageId) {
       fetchAssessmentData();
     }
