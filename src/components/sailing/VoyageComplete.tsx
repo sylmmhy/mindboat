@@ -49,6 +49,12 @@ interface VoyageAssessmentData {
       return_rate: number;
     };
   };
+  exploration_notes: Array<{
+    id: string;
+    content: string;
+    type: 'text' | 'voice';
+    created_at: string;
+  }>;
 }
 
 export const VoyageComplete: React.FC<VoyageCompleteProps> = ({ 
@@ -115,9 +121,10 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
     );
   }
 
-  const { voyage: voyageData, distractions } = assessmentData;
+  const { voyage: voyageData, distractions, exploration_notes } = assessmentData;
   const voyage = voyageData.voyage;
   const destination = voyageData.destination;
+  const hasExplorationNotes = exploration_notes && exploration_notes.length > 0;
 
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -275,6 +282,53 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
                     ))}
                   </div>
                 </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Exploration Notes */}
+          {hasExplorationNotes && (
+            <Card className="p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center">
+                <Compass className="w-6 h-6 mr-2 text-purple-500" />
+                Exploration Discoveries
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Notes and inspirations captured during your exploration:
+              </p>
+              
+              <div className="space-y-3">
+                {exploration_notes.map((note, index) => (
+                  <motion.div
+                    key={note.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200"
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 mt-1">
+                        {note.type === 'voice' ? (
+                          <Mic className="w-4 h-4 text-purple-600" />
+                        ) : (
+                          <FileText className="w-4 h-4 text-purple-600" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-800 text-sm">{note.content}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {note.type === 'voice' ? 'Voice note' : 'Text note'} • {new Date(note.created_at).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+              
+              <div className="mt-4 p-3 bg-purple-50 rounded-lg border-l-4 border-purple-400">
+                <p className="text-sm text-purple-700">
+                  💡 <strong>Seagull's Note:</strong> Your explorations often lead to the most valuable discoveries. These moments of curiosity are treasures for your future voyages!
+                </p>
               </div>
             </Card>
           )}
