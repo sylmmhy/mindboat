@@ -166,7 +166,7 @@ function App() {
     if (currentVoyage && selectedDestination) {
       try {
         // End the voyage in the store
-        await endVoyage();
+        const updatedVoyage = await endVoyage();
         
         showSuccess(
           'Your voyage has been completed successfully!',
@@ -174,10 +174,23 @@ function App() {
         );
         
         // Set completed voyage data for the completion screen
-        setCompletedVoyage({
-          ...currentVoyage,
-          destination: selectedDestination
-        });
+        if (updatedVoyage) {
+          setCompletedVoyage({
+            ...updatedVoyage,
+            destination: selectedDestination
+          });
+        } else {
+          // Fallback if endVoyage doesn't return updated voyage
+          setCompletedVoyage({
+            ...currentVoyage,
+            destination: selectedDestination,
+            // Calculate actual duration as fallback
+            actual_duration: currentVoyage.start_time ? 
+              Math.floor((Date.now() - new Date(currentVoyage.start_time).getTime()) / 60000) : 0,
+            end_time: new Date().toISOString(),
+            status: 'completed' as const
+          });
+        }
         
         // Transition to voyage complete screen
         setAppState('voyage-complete');

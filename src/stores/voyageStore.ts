@@ -14,7 +14,7 @@ interface VoyageState {
   
   // Actions
   startVoyage: (destinationId: string, userId: string, plannedDuration?: number) => Promise<void>;
-  endVoyage: () => Promise<void>;
+  endVoyage: () => Promise<Voyage | null>;
   recordDistraction: (event: DistractionDetectionEvent) => Promise<void>;
   loadVoyageHistory: (userId: string) => Promise<void>;
   resetVoyageState: () => void;
@@ -107,15 +107,18 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
     }
   },
 
-  endVoyage: async () => {
+  endVoyage: async (): Promise<Voyage | null> => {
     const { currentVoyage, startTime, distractionCount } = get();
-    if (!currentVoyage || !startTime) return;
+    if (!currentVoyage) return null;
 
     set({ isLoading: true, error: null });
     
     try {
       const endTime = new Date();
-      const actualDuration = Math.floor((endTime.getTime() - startTime.getTime()) / 60000); // minutes
+      
+      // Calculate actual duration from the voyage's start_time in the database
+      const voyageStartTime = new Date(currentVoyage.start_time);
+      const actualDuration = Math.floor((endTime.getTime() - voyageStartTime.getTime()) / 60000); // minutes
 
       // If it's a local voyage, just update local state
       if (currentVoyage.id.startsWith('local-')) {
@@ -140,10 +143,10 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
           'Local Voyage Complete'
         );
         
-        return;
+        return updatedVoyage;
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('voyages')
         .update({
           end_time: endTime.toISOString(),
@@ -151,7 +154,9 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
           distraction_count: distractionCount,
           status: 'completed',
         })
-        .eq('id', currentVoyage.id);
+        .eq('id', currentVoyage.id)
+        .select()
+        .single();
 
       if (error) {
         console.warn('Database voyage update failed:', error);
@@ -159,6 +164,25 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
           'Voyage completed locally. Database sync failed.',
           'Sync Warning'
         );
+        
+        // Return local updated voyage even if database update failed
+        const localUpdatedVoyage = {
+          ...currentVoyage,
+          end_time: endTime.toISOString(),
+          actual_duration: actualDuration,
+          distraction_count: distractionCount,
+          status: 'completed' as const,
+        };
+        
+        set(state => ({
+          currentVoyage: null,
+          isVoyageActive: false,
+          distractionCount: 0,
+          startTime: null,
+          voyageHistory: [localUpdatedVoyage, ...state.voyageHistory],
+        }));
+        
+        return localUpdatedVoyage;
       } else {
         useNotificationStore.getState().showSuccess(
           `Voyage completed and saved! You focused for ${actualDuration} minutes.`,
@@ -166,8 +190,8 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
         );
       }
 
-      // Update voyage history
-      const updatedVoyage = {
+      // Use the data returned from the database update, or fallback to local calculation
+      const updatedVoyage = data || {
         ...currentVoyage,
         end_time: endTime.toISOString(),
         actual_duration: actualDuration,
@@ -182,6 +206,8 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
         startTime: null,
         voyageHistory: [updatedVoyage, ...state.voyageHistory],
       }));
+      
+      return updatedVoyage;
     } catch (error) {
       console.error('Failed to end voyage:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to end voyage' });
@@ -190,6 +216,8 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
         'Failed to save voyage completion. Your progress may be lost.',
         'Save Error'
       );
+      
+      return null;
     } finally {
       set({ isLoading: false });
     }
