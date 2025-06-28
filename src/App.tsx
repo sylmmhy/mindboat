@@ -13,6 +13,7 @@ import { useDestinationStore } from './stores/destinationStore';
 import { useVoyageStore } from './stores/voyageStore';
 import { useNotificationStore } from './stores/notificationStore';
 import type { Destination } from './types';
+import { setupDebugTool } from './utils/debugDistraction';
 
 type AppState = 'auth' | 'lighthouse' | 'destinations' | 'voyage-prep' | 'sailing' | 'voyage-complete' | 'map';
 
@@ -45,6 +46,13 @@ function App() {
     
     initApp();
   }, [initialize]);
+
+  // Debug
+  useEffect(() => {
+  if (import.meta.env.DEV) {
+    setupDebugTool();
+  }
+}, []);
 
   // Handle state transitions after initialization
   useEffect(() => {
