@@ -372,15 +372,16 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             exit={{ opacity: 0, y: -20 }}
             className="absolute top-16 right-4 z-20"
           >
-            <Card className="p-4 w-80">
-              <h3 className="font-semibold mb-3">Sailing Controls</h3>
+            <Card className="p-6 w-80">
+              <h3 className="font-semibold mb-4">Sailing Controls</h3>
               
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="block text-sm font-medium mb-3">
                     Ambient Volume: {Math.round(volume * 100)}%
                   </label>
                   <div className="relative">
+                    {/* Custom styled range input */}
                     <input
                       type="range"
                       min="0"
@@ -388,33 +389,40 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                       step="0.05"
                       value={volume}
                       onChange={handleVolumeChange}
-                      className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                    />
-                    <div 
-                      className="absolute top-0 left-0 h-3 bg-blue-500 rounded-lg pointer-events-none"
-                      style={{ width: `${volume * 100}%` }}
+                      className="volume-slider w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                     />
                   </div>
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <div className="flex justify-between text-xs text-gray-500 mt-2">
                     <span>Mute</span>
                     <span>Max</span>
                   </div>
                 </div>
                 
-                <div className="border-t pt-3">
-                  <p className="text-sm text-gray-600 mb-1">
-                    <strong>Audio Status:</strong> {isPlaying ? 'Playing' : 'Stopped'}
-                  </p>
-                  <p className="text-sm text-gray-600 mb-1">
-                    <strong>Monitoring:</strong> {isMonitoring ? 'Active' : 'Inactive'}
-                  </p>
-                  <p className="text-sm text-gray-600 mb-3">
-                    <strong>Mode:</strong> {isExploring ? 'Exploration' : 'Focus'}
-                  </p>
+                <div className="border-t pt-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-700">Audio:</span>
+                      <span className={`ml-2 ${isPlaying ? 'text-green-600' : 'text-red-600'}`}>
+                        {isPlaying ? 'Playing' : 'Stopped'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Monitoring:</span>
+                      <span className={`ml-2 ${isMonitoring ? 'text-green-600' : 'text-gray-500'}`}>
+                        {isMonitoring ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="font-medium text-gray-700">Mode:</span>
+                      <span className={`ml-2 ${isExploring ? 'text-purple-600' : 'text-blue-600'}`}>
+                        {isExploring ? 'Exploration' : 'Focus'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
                 
                 {inspirationNotes.length > 0 && (
-                  <div className="border-t pt-3">
+                  <div className="border-t pt-4">
                     <p className="text-sm font-medium mb-2">Recent Notes:</p>
                     <div className="max-h-20 overflow-y-auto text-xs text-gray-600 space-y-1">
                       {inspirationNotes.slice(-3).map((note, index) => (
@@ -476,41 +484,61 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         </div>
       </div>
 
-      {/* Custom CSS for slider styling */}
+      {/* Custom CSS for volume slider */}
       <style jsx>{`
-        .slider::-webkit-slider-thumb {
+        .volume-slider {
+          background: linear-gradient(to right, #3B82F6 0%, #3B82F6 ${volume * 100}%, #E5E7EB ${volume * 100}%, #E5E7EB 100%);
+        }
+        
+        .volume-slider::-webkit-slider-thumb {
           appearance: none;
           height: 20px;
           width: 20px;
           border-radius: 50%;
           background: #3B82F6;
           cursor: pointer;
-          border: 2px solid white;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          border: 3px solid white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+          transition: all 0.2s ease;
         }
         
-        .slider::-moz-range-thumb {
+        .volume-slider::-webkit-slider-thumb:hover {
+          transform: scale(1.1);
+          box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+        }
+        
+        .volume-slider::-moz-range-thumb {
           height: 20px;
           width: 20px;
           border-radius: 50%;
           background: #3B82F6;
           cursor: pointer;
-          border: 2px solid white;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-          border: none;
+          border: 3px solid white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+          transition: all 0.2s ease;
         }
         
-        .slider::-webkit-slider-track {
-          height: 12px;
-          border-radius: 6px;
+        .volume-slider::-moz-range-thumb:hover {
+          transform: scale(1.1);
+          box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+        }
+        
+        .volume-slider::-webkit-slider-track {
+          height: 8px;
+          border-radius: 4px;
           background: transparent;
         }
         
-        .slider::-moz-range-track {
-          height: 12px;
-          border-radius: 6px;
+        .volume-slider::-moz-range-track {
+          height: 8px;
+          border-radius: 4px;
           background: transparent;
           border: none;
+        }
+        
+        .volume-slider:focus {
+          outline: none;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
       `}</style>
     </div>
