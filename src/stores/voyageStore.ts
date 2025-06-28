@@ -302,15 +302,14 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
       set({ error: error instanceof Error ? error.message : 'Failed to load voyage history' });
       
       useNotificationStore.getState().showError(
-      )
+        'Failed to load voyage history. Please try again.',
+        'Load Error'
+      );
+    } finally {
+      set({ isLoading: false });
     }
-    // Ensure the returned data has the correct distraction count
-    const updatedVoyage = {
-      ...currentVoyage,
-      ...data,
-      distraction_count: distractionCount, // Use the local count to ensure accuracy
-    };
-  }
+  },
+
   resetVoyageState: () => {
     set({
       currentVoyage: null,
