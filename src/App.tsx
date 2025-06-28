@@ -49,10 +49,10 @@ function App() {
 
   // Debug
   useEffect(() => {
-  if (import.meta.env.DEV) {
-    setupDebugTool();
-  }
-}, []);
+    if (import.meta.env.DEV) {
+      setupDebugTool();
+    }
+  }, []);
 
   // Handle state transitions after initialization
   useEffect(() => {
