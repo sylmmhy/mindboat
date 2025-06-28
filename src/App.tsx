@@ -33,7 +33,7 @@ function App() {
   
   const [appState, setAppState] = useState<AppState>('auth');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
-  const [completedVoyage, setCompletedVoyage] = useState<any>(null);
+  const [completedVoyageId, setCompletedVoyageId] = useState<string | null>(null);
   const [initializationComplete, setInitializationComplete] = useState(false);
 
   // Initialize the app
@@ -178,22 +178,10 @@ function App() {
         
         // Set completed voyage data for the completion screen
         if (updatedVoyage) {
-          setCompletedVoyage({
-            ...updatedVoyage,
-            destination: selectedDestination
-          });
+          setCompletedVoyageId(updatedVoyage.id);
         } else {
-          // Fallback if endVoyage doesn't return updated voyage
-          setCompletedVoyage({
-            ...currentVoyage,
-            destination: selectedDestination,
-            // Calculate actual duration as fallback
-            actual_duration: currentVoyage.start_time ? 
-              Math.floor((Date.now() - new Date(currentVoyage.start_time).getTime()) / 60000) : 0,
-            end_time: new Date().toISOString(),
-            status: 'completed' as const,
-            distraction_count: distractionCount
-          });
+          // Fallback: use current voyage ID
+          setCompletedVoyageId(currentVoyage.id);
         }
         
         // Transition to voyage complete screen
@@ -215,7 +203,7 @@ function App() {
 
   const handleBackToPrep = () => {
     setSelectedDestination(null);
-    setCompletedVoyage(null);
+    setCompletedVoyageId(null);
     setAppState('voyage-prep');
   };
 
@@ -257,9 +245,9 @@ function App() {
       )}
       
       {appState === 'voyage-complete' && completedVoyage && (
+      {appState === 'voyage-complete' && completedVoyageId && (
         <VoyageComplete
-          voyage={completedVoyage}
-          destination={completedVoyage.destination}
+          voyageId={completedVoyageId}
           onContinue={handleVoyageCompleteNext}
         />
       )}

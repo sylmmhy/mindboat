@@ -184,6 +184,18 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
         
         return localUpdatedVoyage;
       } else {
+        // Calculate voyage statistics after successful database update
+        try {
+          const { error: statsError } = await supabase
+            .rpc('calculate_voyage_statistics', { voyage_id_param: currentVoyage.id });
+          
+          if (statsError) {
+            console.warn('Failed to calculate voyage statistics:', statsError);
+          }
+        } catch (statsError) {
+          console.warn('Error calculating voyage statistics:', statsError);
+        }
+        
         useNotificationStore.getState().showSuccess(
           `Voyage completed and saved! You focused for ${actualDuration} minutes.`,
           'Voyage Complete'
@@ -226,21 +238,42 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
   recordDistraction: async (event) => {
     const { currentVoyage } = get();
     if (!currentVoyage) return;
+    
+    // Capture current position for context
+    const position = {
+      x: Math.random() * 100, // In a real app, this could be actual scroll position or screen coordinates
+      y: Math.random() * 100
+    };
 
     try {
-      // Skip database recording for local voyages
-      if (!currentVoyage.id.startsWith('local-')) {
-        const { error } = await supabase
-          .from('distraction_events')
-          .insert({
-            voyage_id: currentVoyage.id,
-            detected_at: new Date(event.timestamp).toISOString(),
-            duration_seconds: event.duration,
-            type: event.type,
-          });
+      // Always try to record to database, with fallback for local voyages
+      const distractionData = {
+        voyage_id: currentVoyage.id,
+        detected_at: new Date(event.timestamp).toISOString(),
+        duration_seconds: event.duration ? Math.floor(event.duration / 1000) : null,
+        type: event.type,
+        position_x: position.x,
+        position_y: position.y,
+        context_url: window.location.href,
+        is_resolved: !!event.duration, // True if duration is provided (distraction ended)
+      };
 
-        if (error) {
-          console.warn('Failed to record distraction in database:', error);
+      let recordingSuccessful = false;
+
+      // Try database recording unless it's a local voyage
+      if (!currentVoyage.id.startsWith('local-')) {
+        try {
+          const { error } = await supabase
+            .from('distraction_events')
+            .insert(distractionData);
+
+          if (error) {
+            console.warn('Failed to record distraction in database:', error);
+          } else {
+            recordingSuccessful = true;
+          }
+        } catch (dbError) {
+          console.warn('Database error while recording distraction:', dbError);
         }
       }
 
@@ -249,20 +282,27 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
         distractionCount: state.distractionCount + 1
       }));
 
-      // Show notification for distraction
-      const distractionMessages = {
-        tab_switch: 'Tab switching detected',
-        idle: 'Idle time detected',
-        camera_distraction: 'Camera distraction detected'
-      };
+      // Only show notification for new distractions (not when resolving)
+      if (!event.duration) {
+        const distractionMessages = {
+          tab_switch: 'Tab switching detected',
+          idle: 'Idle time detected',
+          camera_distraction: 'Camera distraction detected'
+        };
 
-      useNotificationStore.getState().showInfo(
-        distractionMessages[event.type] || 'Distraction detected',
-        'Focus Alert',
-        { duration: 3000 }
-      );
+        useNotificationStore.getState().showInfo(
+          distractionMessages[event.type] || 'Distraction detected',
+          recordingSuccessful ? 'Focus Alert (Recorded)' : 'Focus Alert (Local)',
+          { duration: 3000 }
+        );
+      }
     } catch (error) {
       console.error('Failed to record distraction:', error);
+      
+      // Still update local count even if recording fails
+      set(state => ({
+        distractionCount: state.distractionCount + 1
+      }));
     }
   },
 
