@@ -135,8 +135,8 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         
         // Add to trail
         trail.current.push({
-          x: boatPosition.current.x,
-          y: boatPosition.current.y,
+          x: (boatPosition.current.x / 100) * (window.innerWidth || 1000),
+          y: (boatPosition.current.y / 100) * (window.innerHeight || 600),
           timestamp: Date.now()
         });
         
@@ -263,8 +263,8 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       <svg className="absolute inset-0 w-full h-full pointer-events-none">
         <path
           d={trail.current.length > 1 ? 
-            `M ${trail.current[0].x}% ${trail.current[0].y}% ` +
-            trail.current.slice(1).map(point => `L ${point.x}% ${point.y}%`).join(' ')
+            `M ${trail.current[0].x} ${trail.current[0].y} ` +
+            trail.current.slice(1).map(point => `L ${point.x} ${point.y}`).join(' ')
             : ''
           }
           stroke={destination.color_theme}
@@ -279,8 +279,8 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       <motion.div
         className="absolute z-10"
         style={{
-          left: `${boatPosition.current.x}%`,
-          top: `${boatPosition.current.y}%`,
+          left: `${Math.min(Math.max(boatPosition.current.x, 0), 100)}%`,
+          top: `${Math.min(Math.max(boatPosition.current.y, 10), 90)}%`,
         }}
         animate={{
           y: isDistracted ? [0, -5, 0] : [0, -2, 0],
