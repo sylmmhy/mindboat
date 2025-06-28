@@ -164,6 +164,9 @@ function App() {
 
   const handleEndVoyage = async () => {
     if (currentVoyage && selectedDestination) {
+      // Capture distraction count before ending voyage (since endVoyage resets store state)
+      const { distractionCount } = useVoyageStore.getState();
+      
       try {
         // End the voyage in the store
         const updatedVoyage = await endVoyage();
@@ -181,7 +184,6 @@ function App() {
           });
         } else {
           // Fallback if endVoyage doesn't return updated voyage
-          const { distractionCount } = useVoyageStore.getState();
           setCompletedVoyage({
             ...currentVoyage,
             destination: selectedDestination,
