@@ -33,7 +33,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     isDistracted, 
     isMonitoring, 
     handleDistractionResponse 
-  } = useDistraction({ isExploring });
+  } = useDistraction({ isExploring, currentDestination: destination });
   const { 
     isPlaying, 
     volume, 

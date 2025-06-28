@@ -10,7 +10,7 @@ import { useUserStore } from '../../stores/userStore';
 import type { Destination } from '../../types';
 
 interface VoyagePreparationProps {
-  onStartVoyage: (destination: Destination) => void;
+  onStartVoyage: (destination: Destination, plannedDuration: number) => void;
   onViewMap?: () => void;
   onManageDestinations?: () => void;
 }
@@ -44,7 +44,7 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({
     if (!selectedDestination) return;
     
     // Call the parent's onStartVoyage function
-    onStartVoyage(selectedDestination);
+    onStartVoyage(selectedDestination, plannedDuration);
   };
 
   const handleCreateDestination = async () => {

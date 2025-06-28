@@ -136,14 +136,14 @@ function App() {
     setAppState('voyage-prep');
   };
 
-  const handleStartVoyage = async (destination: Destination) => {
+  const handleStartVoyage = async (destination: Destination, plannedDuration: number) => {
     if (!user) return;
     
     setSelectedDestination(destination);
     
     try {
       // Start the voyage in the store
-      await startVoyage(destination.id, user.id, 25); // Default 25 minutes
+      await startVoyage(destination.id, user.id, plannedDuration);
       
       showSuccess(
         `Sailing to ${destination.destination_name}`,

@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useVoyageStore } from '../stores/voyageStore';
+import { useDestinationStore } from '../stores/destinationStore';
 import type { DistractionDetectionEvent, PermissionState } from '../types';
 
 interface UseDistractionProps {
   isExploring?: boolean;
+  currentDestination?: any;
 }
 
-export const useDistraction = ({ isExploring = false }: UseDistractionProps = {}) => {
+export const useDistraction = ({ isExploring = false, currentDestination }: UseDistractionProps = {}) => {
   const [isDistracted, setIsDistracted] = useState(false);
   const [permissionsGranted, setPermissionsGranted] = useState<PermissionState>({
     camera: false,
@@ -23,6 +25,7 @@ export const useDistraction = ({ isExploring = false }: UseDistractionProps = {}
   const distractionStartTime = useRef<number>();
   const idleTimeoutRef = useRef<NodeJS.Timeout>();
   const lastActivityTime = useRef<number>(Date.now());
+  const lastUrlRef = useRef<string>(window.location.href);
   
   const { isVoyageActive, recordDistraction } = useVoyageStore();
   
@@ -37,6 +40,92 @@ export const useDistraction = ({ isExploring = false }: UseDistractionProps = {}
   useEffect(() => {
     lastDistractionTypeRef.current = lastDistractionType;
   }, [lastDistractionType]);
+
+  // Check if current URL is task-related
+  const isCurrentUrlTaskRelated = useCallback(() => {
+    if (!currentDestination?.related_apps) return true; // Default to focused if no apps specified
+    
+    const currentUrl = window.location.href.toLowerCase();
+    const currentDomain = window.location.hostname.toLowerCase();
+    
+    // List of productivity-related domains that should always be considered focused
+    const productivityDomains = [
+      'notion.so', 'notion.site',
+      'docs.google.com', 'drive.google.com',
+      'office.com', 'office365.com', 'onedrive.com',
+      'zotero.org',
+      'github.com', 'gitlab.com',
+      'stackoverflow.com', 'stackexchange.com',
+      'overleaf.com',
+      'localhost' // For local development
+    ];
+    
+    // Check if current domain is inherently productive
+    if (productivityDomains.some(domain => currentDomain.includes(domain))) {
+      return true;
+    }
+    
+    // Check if current URL contains any of the related app names
+    const relatedApps = currentDestination.related_apps.map((app: string) => app.toLowerCase());
+    
+    for (const app of relatedApps) {
+      if (currentUrl.includes(app.toLowerCase()) || currentDomain.includes(app.toLowerCase())) {
+        return true;
+      }
+    }
+    
+    // Check for common distracting domains
+    const distractingDomains = [
+      'youtube.com', 'youtu.be',
+      'facebook.com', 'twitter.com', 'instagram.com', 'tiktok.com',
+      'reddit.com',
+      'netflix.com', 'amazon.com', 'ebay.com',
+      'news.', 'cnn.com', 'bbc.com'
+    ];
+    
+    if (distractingDomains.some(domain => currentDomain.includes(domain))) {
+      return false;
+    }
+    
+    // If we can't determine, assume it's focused (benefit of the doubt)
+    return true;
+  }, [currentDestination]);
+  
+  // Monitor URL changes for navigation-based distraction detection
+  const checkUrlChange = useCallback(() => {
+    if (!shouldMonitor) return;
+    
+    const currentUrl = window.location.href;
+    if (currentUrl !== lastUrlRef.current) {
+      lastUrlRef.current = currentUrl;
+      
+      const isTaskRelated = isCurrentUrlTaskRelated();
+      
+      if (!isTaskRelated && !isDistractedRef.current) {
+        // User navigated to non-task-related site
+        setIsDistracted(true);
+        setLastDistractionType('tab_switch'); // Using tab_switch as navigation type
+        distractionStartTime.current = Date.now();
+        
+        recordDistraction({
+          type: 'tab_switch',
+          timestamp: Date.now(),
+        });
+      } else if (isTaskRelated && isDistractedRef.current && lastDistractionTypeRef.current === 'tab_switch') {
+        // User returned to task-related site
+        setIsDistracted(false);
+        if (distractionStartTime.current) {
+          const duration = Date.now() - distractionStartTime.current;
+          recordDistraction({
+            type: 'tab_switch',
+            timestamp: distractionStartTime.current,
+            duration,
+          });
+          distractionStartTime.current = undefined;
+        }
+      }
+    }
+  }, [shouldMonitor, isCurrentUrlTaskRelated, recordDistraction]);
 
   // Stable callback functions that don't change on every render
   const handleVisibilityChange = useCallback(() => {
@@ -74,6 +163,9 @@ export const useDistraction = ({ isExploring = false }: UseDistractionProps = {}
       }
       distractionStartTime.current = undefined;
       lastActivityTime.current = Date.now();
+      
+      // Check URL when returning to tab
+      setTimeout(checkUrlChange, 100);
     }
   }, [shouldMonitor, recordDistraction]);
 
@@ -81,6 +173,9 @@ export const useDistraction = ({ isExploring = false }: UseDistractionProps = {}
     if (!shouldMonitor) return;
     
     lastActivityTime.current = Date.now();
+    
+    // Check URL on activity
+    checkUrlChange();
     
     // Clear idle timeout if user becomes active
     if (idleTimeoutRef.current) {
@@ -114,7 +209,7 @@ export const useDistraction = ({ isExploring = false }: UseDistractionProps = {}
         });
       }
     }, 120000); // 2 minute idle threshold
-  }, [shouldMonitor, recordDistraction]);
+  }, [shouldMonitor, recordDistraction, checkUrlChange]);
 
   // Enhanced distraction detection with multiple methods
   useEffect(() => {
@@ -132,6 +227,10 @@ export const useDistraction = ({ isExploring = false }: UseDistractionProps = {}
     
     // Initialize activity tracking
     lastActivityTime.current = Date.now();
+    lastUrlRef.current = window.location.href;
+    
+    // Initial URL check
+    setTimeout(checkUrlChange, 100);
     
     // Event listeners
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -139,6 +238,10 @@ export const useDistraction = ({ isExploring = false }: UseDistractionProps = {}
     document.addEventListener('keydown', handleActivity);
     document.addEventListener('click', handleActivity);
     document.addEventListener('scroll', handleActivity);
+    
+    // Monitor URL changes using both popstate and a periodic check
+    window.addEventListener('popstate', checkUrlChange);
+    const urlCheckInterval = setInterval(checkUrlChange, 1000); // Check every second
     
     // Initialize idle detection
     idleTimeoutRef.current = setTimeout(() => {
@@ -160,6 +263,8 @@ export const useDistraction = ({ isExploring = false }: UseDistractionProps = {}
       document.removeEventListener('keydown', handleActivity);
       document.removeEventListener('click', handleActivity);
       document.removeEventListener('scroll', handleActivity);
+      window.removeEventListener('popstate', checkUrlChange);
+      clearInterval(urlCheckInterval);
       
       if (distractionTimeoutRef.current) {
         clearTimeout(distractionTimeoutRef.current);
@@ -168,7 +273,7 @@ export const useDistraction = ({ isExploring = false }: UseDistractionProps = {}
         clearTimeout(idleTimeoutRef.current);
       }
     };
-  }, [shouldMonitor, handleVisibilityChange, handleActivity, recordDistraction]);
+  }, [shouldMonitor, handleVisibilityChange, handleActivity, recordDistraction, checkUrlChange]);
 
   const requestPermissions = useCallback(async () => {
     try {
