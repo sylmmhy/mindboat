@@ -342,7 +342,7 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
     const urlCheckInterval = setInterval(() => {
       debugLog('Periodic URL check');
       checkUrlChange();
-    }, 2000); // Check every 2 seconds
+    }, 5000); // Check every 5 seconds
     
     // Initialize idle detection
     idleTimeoutRef.current = setTimeout(() => {
