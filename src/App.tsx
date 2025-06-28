@@ -22,6 +22,7 @@ function App() {
     user, 
     lighthouseGoal, 
     initialize, 
+    debugDistractionFlow,
     isLoading, 
     isAuthenticated, 
     authMode,
@@ -52,7 +53,7 @@ function App() {
     if (import.meta.env.DEV) {
       setupDebugTool();
     }
-  }, []);
+  }, [debugDistractionFlow]);
 
   // Handle state transitions after initialization
   useEffect(() => {
