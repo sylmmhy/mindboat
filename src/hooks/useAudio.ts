@@ -3,7 +3,7 @@ import * as Tone from 'tone';
 
 export const useAudio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.3);
+  const [volume, setVolume] = useState(0.1); // Start much quieter
   const noiseRef = useRef<Tone.Noise | null>(null);
   const filterRef = useRef<Tone.Filter | null>(null);
   const volumeRef = useRef<Tone.Volume | null>(null);
@@ -22,8 +22,8 @@ export const useAudio = () => {
           rolloff: -24
         });
         
-        // Create volume control
-        volumeRef.current = new Tone.Volume(-20); // Start quiet
+        // Create volume control - start very quiet
+        volumeRef.current = new Tone.Volume(-50); // Much quieter initial volume
         
         // Connect the audio chain
         noiseRef.current
@@ -55,14 +55,18 @@ export const useAudio = () => {
   const startAmbientSound = useCallback(async () => {
     try {
       await Tone.start();
-      if (noiseRef.current) {
+      if (noiseRef.current && volumeRef.current) {
+        // Set the initial volume before starting
+        const initialDb = volume === 0 ? -Infinity : -70 + (volume * 40); // Much quieter range
+        volumeRef.current.volume.value = initialDb;
+        
         noiseRef.current.start();
         setIsPlaying(true);
       }
     } catch (error) {
       console.warn('Failed to start ambient sound:', error);
     }
-  }, []);
+  }, [volume]);
 
   const stopAmbientSound = useCallback(() => {
     if (noiseRef.current) {
@@ -74,14 +78,13 @@ export const useAudio = () => {
   const adjustVolume = useCallback((newVolume: number) => {
     setVolume(newVolume);
     if (volumeRef.current) {
-      // Convert 0-1 range to decibels with better scaling
-      // Use a more gradual curve for better volume control
+      // Convert 0-1 range to decibels with much quieter scaling
       let db;
       if (newVolume === 0) {
         db = -Infinity; // Mute
       } else {
-        // Scale from -60dB to -10dB for better control
-        db = -60 + (newVolume * 50);
+        // Scale from -70dB to -30dB for much quieter and better control
+        db = -70 + (newVolume * 40);
       }
       
       // Use rampTo for smooth volume changes
