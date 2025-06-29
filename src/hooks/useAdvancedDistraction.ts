@@ -99,7 +99,9 @@ export const useAdvancedDistraction = ({
     currentDestinationRef.current = currentDestination;
   }, [currentDestination]);
 
-  const { isVoyageActive, recordDistraction } = useVoyageStore();
+  // Use stable selectors to prevent re-renders
+  const isVoyageActive = useVoyageStore(state => state.isVoyageActive);
+  const recordDistraction = useVoyageStore(state => state.recordDistraction);
 
   // Debug logging
   const debugLog = useCallback((method: string, message: string, data?: any) => {
@@ -217,10 +219,12 @@ export const useAdvancedDistraction = ({
               });
 
               // Record distraction
-              recordDistraction({
-                type: cameraIssues ? 'camera_distraction' : 'tab_switch',
-                timestamp: prev.startTime,
-              });
+              setTimeout(() => {
+                recordDistraction({
+                  type: cameraIssues ? 'camera_distraction' : 'tab_switch',
+                  timestamp: prev.startTime,
+                });
+              }, 0);
 
               return {
                 ...prev,
@@ -340,10 +344,12 @@ export const useAdvancedDistraction = ({
             });
 
             // Record distraction
-            recordDistraction({
-              type: 'tab_switch',
-              timestamp: prev.startTime,
-            });
+            setTimeout(() => {
+              recordDistraction({
+                type: 'tab_switch',
+                timestamp: prev.startTime,
+              });
+            }, 0);
 
             return {
               ...prev,
@@ -386,10 +392,12 @@ export const useAdvancedDistraction = ({
             });
 
             // Record distraction
-            recordDistraction({
-              type: 'tab_switch',
-              timestamp: prev.startTime,
-            });
+            setTimeout(() => {
+              recordDistraction({
+                type: 'tab_switch',
+                timestamp: prev.startTime,
+              });
+            }, 0);
 
             return {
               ...prev,
@@ -442,11 +450,13 @@ export const useAdvancedDistraction = ({
     const activeStartTime = combinedState.startTime || urlState.startTime;
     if (activeStartTime) {
       const duration = Date.now() - activeStartTime;
-      await recordDistraction({
-        type: distractionType as any,
-        timestamp: activeStartTime,
-        duration,
-      });
+      setTimeout(() => {
+        recordDistraction({
+          type: distractionType as any,
+          timestamp: activeStartTime,
+          duration,
+        });
+      }, 0);
     }
   }, [recordDistraction, debugLog, combinedState.startTime, urlState.startTime, distractionType]);
 

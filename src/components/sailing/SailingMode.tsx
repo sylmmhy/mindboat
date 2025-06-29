@@ -37,7 +37,11 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraPermissionGranted, setCameraPermissionGranted] = useState(false);
 
-  const { currentVoyage, distractionCount, endVoyage } = useVoyageStore();
+  // Use stable selectors to prevent unnecessary re-renders
+  const currentVoyage = useVoyageStore(state => state.currentVoyage);
+  const distractionCount = useVoyageStore(state => state.distractionCount);
+  const endVoyage = useVoyageStore(state => state.endVoyage);
+  
   const { showSuccess } = useNotificationStore();
   const {
     isDistracted,
@@ -96,7 +100,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
   // High-precision timer effect
   useEffect(() => {
-    if (currentVoyage) {
+    if (currentVoyage?.id) {
       startTimeRef.current = new Date(currentVoyage.start_time).getTime();
       
       timerRef.current = createPrecisionInterval((elapsedMs) => {
@@ -126,7 +130,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         timerRef.current.stop();
       }
     };
-  }, [currentVoyage, showSuccess]);
+  }, [currentVoyage?.id, currentVoyage?.start_time, showSuccess]);
 
   // Enhanced distraction alert effect
   useEffect(() => {
@@ -174,12 +178,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     return () => clearInterval(animationInterval);
   }, [isDistracted, isExploring]);
 
-  const handleEndVoyage = async () => {
+  const handleEndVoyage = useCallback(async () => {
     await endVoyage();
     onEndVoyage();
-  };
+  }, [endVoyage, onEndVoyage]);
 
-  const handleDistractionChoice = async (choice: 'return_to_course' | 'exploring') => {
+  const handleDistractionChoice = useCallback(async (choice: 'return_to_course' | 'exploring') => {
     await handleDistractionResponse(choice);
     setShowDistractionAlert(false);
 
@@ -192,17 +196,17 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     } else {
       setIsExploring(false);
     }
-  };
+  }, [handleDistractionResponse, weatherMood, setAudioWeatherMood]);
 
-  const handleReturnToCourse = () => {
+  const handleReturnToCourse = useCallback(() => {
     setIsExploring(false);
     if (weatherMood !== 'sunny') {
       setWeatherMood('sunny');
       setAudioWeatherMood('sunny');
     }
-  };
+  }, [weatherMood, setAudioWeatherMood]);
 
-  const handleCaptureInspiration = (content: string, type: 'text' | 'voice') => {
+  const handleCaptureInspiration = useCallback((content: string, type: 'text' | 'voice') => {
     const newNote = {
       content,
       type,
@@ -217,13 +221,13 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       `${type === 'voice' ? 'Voice note' : 'Text note'} captured successfully!`,
       'Inspiration Saved'
     );
-  };
+  }, [showSuccess]);
 
   // Handle camera stream changes
-  const handleCameraStream = (stream: MediaStream | null) => {
+  const handleCameraStream = useCallback((stream: MediaStream | null) => {
     setCameraStream(stream);
     setCameraPermissionGranted(!!stream);
-  };
+  }, []);
 
   // Format time with high precision
   const formatTime = (milliseconds: number) => {
@@ -241,11 +245,11 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   };
 
   // Handle volume change
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = Number(e.target.value);
     console.log('Volume slider changed to:', newVolume);
     adjustVolume(newVolume);
-  };
+  }, [adjustVolume]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 relative overflow-hidden">

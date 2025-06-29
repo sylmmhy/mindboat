@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 import { useNotificationStore } from './notificationStore';
 import type { Voyage, DistractionDetectionEvent } from '../types';
@@ -20,7 +21,8 @@ interface VoyageState {
   resetVoyageState: () => void;
 }
 
-export const useVoyageStore = create<VoyageState>((set, get) => ({
+export const useVoyageStore = create<VoyageState>()(
+  subscribeWithSelector((set, get) => ({
   currentVoyage: null,
   voyageHistory: [],
   isVoyageActive: false,
@@ -295,4 +297,4 @@ export const useVoyageStore = create<VoyageState>((set, get) => ({
       error: null,
     });
   },
-}));
+})));
