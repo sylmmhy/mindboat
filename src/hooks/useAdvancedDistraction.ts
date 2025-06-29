@@ -195,7 +195,7 @@ export const useAdvancedDistraction = ({
 
             return {
               ...prev,
-              isDistracted: true
+              isDistracted: true // 🔧 KEY FIX: This sets the distracted state
             };
           }
           return prev;
@@ -221,21 +221,6 @@ export const useAdvancedDistraction = ({
         if (prev.startTime) {
           const duration = Date.now() - prev.startTime;
           
-          // Determine specific distraction type from analysis
-          let specificDistractionType: DistractionDetectionEvent['type'] = 'tab_switch'; // default
-          
-          if (combinedState.lastScreenshotAnalysis?.distractionType) {
-            // Use the LLM-identified distraction type
-            specificDistractionType = combinedState.lastScreenshotAnalysis.distractionType as DistractionDetectionEvent['type'];
-          } else if (cameraStream && combinedState.lastCameraAnalysis?.physicalDistraction) {
-            // Use camera-detected physical distraction
-            specificDistractionType = combinedState.lastCameraAnalysis.physicalDistraction as DistractionDetectionEvent['type'];
-          } else if (cameraStream && combinedState.lastCameraAnalysis) {
-            specificDistractionType = combinedState.lastCameraAnalysis.personPresent === false ? 'camera_absence' : 'looking_away';
-          } else if (combinedState.lastScreenshotAnalysis && !combinedState.lastScreenshotAnalysis.contentRelevant) {
-            specificDistractionType = 'irrelevant_browsing';
-          }
-          
           // Only record if distraction lasted more than 3 seconds
           if (duration >= 3000) {
             debugLog('TAB_SWITCH', 'Recording completed distraction', { 
@@ -256,7 +241,7 @@ export const useAdvancedDistraction = ({
         
         // Clear tab switch distraction state
         return {
-          isDistracted: false,
+          isDistracted: false, // 🔧 KEY FIX: Clear the distracted state
           startTime: null,
           isTabHidden: false
         };
@@ -271,7 +256,7 @@ export const useAdvancedDistraction = ({
         checkUrlChange();
       }, 100);
     }
-  }, [isVoyageActive, recordDistraction, debugLog, tabSwitchState.isDistracted, tabSwitchState.startTime, combinedState.lastScreenshotAnalysis, combinedState.lastCameraAnalysis, cameraStream]);
+  }, [isVoyageActive, recordDistraction, debugLog, tabSwitchState.isDistracted, tabSwitchState.startTime]);
 
   // URL checking for blacklisted/irrelevant content
   const checkUrlChange = useCallback(() => {
@@ -443,7 +428,6 @@ export const useAdvancedDistraction = ({
         if (isContentIrrelevant || cameraIssues) {
           setCombinedState(prev => {
             if (!prev.isDistracted) {
-              const distractionDuration = currentTime - prev.lastCheck;
               debugLog('COMBINED', 'Distraction detected via combined analysis', { 
                 contentIrrelevant: isContentIrrelevant,
                 cameraIssues,
@@ -670,7 +654,7 @@ export const useAdvancedDistraction = ({
     return 'tab_switch';
   };
 
-  // Combined distraction state - THIS IS THE KEY FIX
+  // 🔧 KEY FIX: Combined distraction state - THIS IS THE CRITICAL PART
   const isDistracted = tabSwitchState.isDistracted || combinedState.isDistracted || urlState.isDistracted;
   const distractionType = getDominantDistractionType();
 
