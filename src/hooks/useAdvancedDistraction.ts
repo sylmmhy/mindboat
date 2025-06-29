@@ -223,15 +223,15 @@ export const useAdvancedDistraction = ({
           // Determine specific distraction type from analysis
           let specificDistractionType: DistractionDetectionEvent['type'] = 'tab_switch'; // default
           
-          if (analysis.distractionType) {
+          if (combinedState.lastScreenshotAnalysis?.distractionType) {
             // Use the LLM-identified distraction type
-            specificDistractionType = analysis.distractionType as DistractionDetectionEvent['type'];
-          } else if (cameraIssues && analysis.cameraAnalysis?.physicalDistraction) {
+            specificDistractionType = combinedState.lastScreenshotAnalysis.distractionType as DistractionDetectionEvent['type'];
+          } else if (cameraStream && combinedState.lastCameraAnalysis?.physicalDistraction) {
             // Use camera-detected physical distraction
-            specificDistractionType = analysis.cameraAnalysis.physicalDistraction as DistractionDetectionEvent['type'];
-          } else if (cameraIssues) {
-            specificDistractionType = analysis.cameraAnalysis?.personPresent === false ? 'camera_absence' : 'looking_away';
-          } else if (isContentIrrelevant) {
+            specificDistractionType = combinedState.lastCameraAnalysis.physicalDistraction as DistractionDetectionEvent['type'];
+          } else if (cameraStream && combinedState.lastCameraAnalysis) {
+            specificDistractionType = combinedState.lastCameraAnalysis.personPresent === false ? 'camera_absence' : 'looking_away';
+          } else if (combinedState.lastScreenshotAnalysis && !combinedState.lastScreenshotAnalysis.contentRelevant) {
             specificDistractionType = 'irrelevant_browsing';
           }
           
@@ -270,7 +270,7 @@ export const useAdvancedDistraction = ({
         checkUrlChange();
       }, 100);
     }
-  }, [isVoyageActive, recordDistraction, debugLog, tabSwitchState.isDistracted, tabSwitchState.startTime]);
+  }, [isVoyageActive, recordDistraction, debugLog, tabSwitchState.isDistracted, tabSwitchState.startTime, combinedState.lastScreenshotAnalysis, combinedState.lastCameraAnalysis, cameraStream]);
 
   // URL checking for blacklisted/irrelevant content
   const checkUrlChange = useCallback(() => {
