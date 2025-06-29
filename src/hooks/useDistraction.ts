@@ -296,10 +296,10 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
       }
     }
     
-    // Set new idle timeout (reduced to 90 seconds for testing)
+    // Set new idle timeout (reduced to 30 seconds for testing)
     idleTimeoutRef.current = setTimeout(() => {
       const timeSinceActivity = Date.now() - lastActivityTime.current;
-      if (timeSinceActivity >= 90000 && !isDistractedRef.current) { // 90 seconds for easier testing
+      if (timeSinceActivity >= 30000 && !isDistractedRef.current) { // 30 seconds for easier testing
         debugLog('Triggering idle distraction');
         setIsDistracted(true);
         setLastDistractionType('idle');
