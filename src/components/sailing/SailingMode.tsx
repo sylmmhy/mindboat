@@ -93,7 +93,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
     return () => {
       if (timerRef.current) {
-        timerRef.current.cleanup();
+        timerRef.current.stop();
       }
     };
   }, [currentVoyage, startAmbientSound]);
