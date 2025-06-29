@@ -43,8 +43,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const endVoyage = useVoyageStore(state => state.endVoyage);
   
   const { showSuccess } = useNotificationStore();
-  
-  // Use the fixed advanced distraction detection hook
   const {
     isDistracted,
     distractionType,
@@ -58,7 +56,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     currentDestination: destination,
     cameraStream 
   });
-  
   const {
     isPlaying,
     volume,
@@ -73,22 +70,59 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   // High-precision timer
   const timerRef = useRef<ReturnType<typeof createPrecisionInterval>>();
   const startTimeRef = useRef<number>(0);
-  const boatPosition = useRef({ x: 10, y: 60 });
-  const trail = useRef<Array<{ x: number, y: number, timestamp: number }>>([]);
+  const boatPosition = useRef({ x: 50, y: 50 });
+  const trail = useRef<Array<{ x: number; y: number; timestamp: number }>>([]);
+  const seagullTimerRef = useRef<NodeJS.Timeout>();
 
-  // Initialize timer when voyage starts
+  // Initialize services and start monitoring
   useEffect(() => {
-    if (currentVoyage) {
-      startTimeRef.current = getHighPrecisionTime();
-      
-      timerRef.current = createPrecisionInterval(() => {
-        const currentTime = getHighPrecisionTime();
-        const elapsed = calculatePreciseDuration(startTimeRef.current, currentTime);
-        setElapsedTime(elapsed);
-      }, 100); // Update every 100ms for smooth display
-
-      // Start ambient audio
+    // Initialize Gemini service
+    GeminiService.initialize();
+    
+    // Small delay to ensure audio system is ready
+    const timer = setTimeout(() => {
       startAmbientSound();
+    }, 1000);
+
+    // Show seagull after 5 minutes for first-time interaction
+    seagullTimerRef.current = setTimeout(() => {
+      setShowSeagull(true);
+    }, 300000); // 5 minutes
+
+    return () => {
+      clearTimeout(timer);
+      stopAmbientSound();
+      if (seagullTimerRef.current) {
+        clearTimeout(seagullTimerRef.current);
+      }
+    };
+  }, [startAmbientSound, stopAmbientSound]);
+
+  // High-precision timer effect
+  useEffect(() => {
+    if (currentVoyage?.id) {
+      startTimeRef.current = new Date(currentVoyage.start_time).getTime();
+      
+      timerRef.current = createPrecisionInterval((elapsedMs) => {
+        setElapsedTime(elapsedMs);
+
+        // Show milestone notifications at precise intervals
+        const elapsedMinutes = Math.floor(elapsedMs / 60000);
+        const elapsedSeconds = Math.floor(elapsedMs / 1000);
+        
+        // 30-minute milestone
+        if (elapsedSeconds === 1800 && !localStorage.getItem(`milestone-30-${currentVoyage.id}`)) {
+          showSuccess('30 minutes of sustained focus!', 'Great Achievement');
+          localStorage.setItem(`milestone-30-${currentVoyage.id}`, 'true');
+        }
+        // 1-hour milestone  
+        else if (elapsedSeconds === 3600 && !localStorage.getItem(`milestone-60-${currentVoyage.id}`)) {
+          showSuccess('1 full hour of deep focus!', 'Excellent Work');
+          localStorage.setItem(`milestone-60-${currentVoyage.id}`, 'true');
+        }
+      }, 100); // Update every 100ms for smooth display
+      
+      timerRef.current.start();
     }
 
     return () => {
@@ -96,24 +130,26 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         timerRef.current.stop();
       }
     };
-  }, [currentVoyage, startAmbientSound]);
+  }, [currentVoyage?.id, currentVoyage?.start_time, showSuccess]);
 
-  // Show distraction alert when distraction is detected
+  // Enhanced distraction alert effect
   useEffect(() => {
     if (isDistracted && !isExploring) {
       setShowDistractionAlert(true);
-      
-      // Update weather to reflect distraction
-      if (weatherMood === 'sunny') {
-        setWeatherMood('cloudy');
-        setAudioWeatherMood('cloudy');
+      if (weatherMood !== 'stormy') {
+        setWeatherMood('stormy');
+        setAudioWeatherMood('stormy');
       }
-    } else {
+    } else if (!isExploring) {
       setShowDistractionAlert(false);
+      if (weatherMood !== 'sunny') {
+        setWeatherMood('sunny');
+        setAudioWeatherMood('sunny');
+      }
     }
   }, [isDistracted, isExploring, weatherMood, setAudioWeatherMood]);
 
-  // Boat animation and trail management
+  // Boat animation effect
   useEffect(() => {
     const animateBoat = () => {
       if (!isDistracted && !isExploring) {
@@ -143,14 +179,9 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   }, [isDistracted, isExploring]);
 
   const handleEndVoyage = useCallback(async () => {
-    try {
-      await endVoyage();
-      stopAmbientSound();
-      onEndVoyage();
-    } catch (error) {
-      console.error('Failed to end voyage:', error);
-    }
-  }, [endVoyage, stopAmbientSound, onEndVoyage]);
+    await endVoyage();
+    onEndVoyage();
+  }, [endVoyage, onEndVoyage]);
 
   const handleDistractionChoice = useCallback(async (choice: 'return_to_course' | 'exploring') => {
     await handleDistractionResponse(choice);
@@ -164,10 +195,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       }
     } else {
       setIsExploring(false);
-      if (weatherMood !== 'sunny') {
-        setWeatherMood('sunny');
-        setAudioWeatherMood('sunny');
-      }
     }
   }, [handleDistractionResponse, weatherMood, setAudioWeatherMood]);
 
@@ -220,6 +247,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   // Handle volume change
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = Number(e.target.value);
+    console.log('Volume slider changed to:', newVolume);
     adjustVolume(newVolume);
   }, [adjustVolume]);
 
@@ -275,191 +303,235 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           rotate: isDistracted ? [-2, 2, -2] : [-1, 1, -1],
         }}
         transition={{
-          duration: isDistracted ? 1.5 : 3,
+          duration: isDistracted ? 1 : 3,
           repeat: Infinity,
-          repeatType: 'reverse',
+          ease: 'easeInOut',
         }}
       >
-        <div className="relative">
-          <Anchor 
-            size={32} 
-            className={`text-white ${isDistracted ? 'opacity-70' : 'opacity-100'} drop-shadow-lg`}
-            style={{ color: destination.color_theme }}
-          />
-          {isDistracted && (
-            <motion.div
-              className="absolute -top-2 -right-2"
-              animate={{ scale: [1, 1.3, 1] }}
-              transition={{ duration: 0.5, repeat: Infinity }}
-            >
-              <span className="text-yellow-400 text-lg">⚠️</span>
-            </motion.div>
-          )}
-        </div>
+        <Anchor className="w-8 h-8 text-white drop-shadow-lg" />
       </motion.div>
 
-      {/* Controls Toggle */}
-      <motion.button
-        className="absolute top-4 right-4 z-20 bg-white/10 backdrop-blur-sm rounded-full p-3 hover:bg-white/20 transition-colors"
-        onClick={() => setShowControls(!showControls)}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <Settings className="w-5 h-5 text-white" />
-      </motion.button>
+      {/* Lighthouse (Destination) */}
+      <div className="absolute top-10 right-10 text-center">
+        <motion.div
+          animate={{
+            opacity: [0.5, 1, 0.5],
+          }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+          }}
+          className="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center mb-2"
+        >
+          <Compass className="w-8 h-8 text-yellow-900" />
+        </motion.div>
+        <p className="text-white text-sm font-medium">{destination.destination_name}</p>
+      </div>
+
+      {/* Top Status Bar */}
+      <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
+        <div className="flex items-center space-x-4">
+          <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
+            <span className="text-white font-mono text-lg">{formatTime(elapsedTime)}</span>
+          </div>
+          <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
+            <span className="text-white text-sm">Distractions: {distractionCount}</span>
+          </div>
+          <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
+            <span className="text-white text-sm">{getWeatherEmoji()} {weatherMood}</span>
+          </div>
+          {isExploring && (
+            <div className="bg-purple-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
+              <span className="text-white text-sm">🧭 Exploring</span>
+            </div>
+          )}
+          {inspirationNotes.length > 0 && (
+            <div className="bg-green-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
+              <span className="text-white text-sm">💡 {inspirationNotes.length} notes</span>
+            </div>
+          )}
+          {cameraPermissionGranted && (
+            <div className="bg-green-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
+              <span className="text-white text-sm">📷 AI Monitoring</span>
+            </div>
+          )}
+          {diagnostics.geminiConfigured && (
+            <div className="bg-blue-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
+              <span className="text-white text-sm">🤖 Gemini Ready</span>
+            </div>
+          )}
+        </div>
+        
+        {/* Camera View Component */}
+        <CameraView 
+          isActive={true}
+          onCameraStream={handleCameraStream}
+        />
+
+        <div className="flex items-center space-x-2">
+          <Button
+            onClick={toggleMute}
+            variant="ghost"
+            size="sm"
+            className="text-white hover:bg-white/20"
+          >
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </Button>
+          <Button
+            onClick={() => setShowControls(!showControls)}
+            variant="ghost"
+            size="sm"
+            className="text-white hover:bg-white/20"
+          >
+            <Settings className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
 
       {/* Controls Panel */}
       <AnimatePresence>
         {showControls && (
           <motion.div
-            initial={{ opacity: 0, x: 100 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 100 }}
-            className="absolute top-4 right-16 z-20"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-16 right-4 z-20"
           >
-            <Card className="p-4 bg-white/90 backdrop-blur-sm min-w-80">
-              <div className="space-y-4">
-                {/* Basic Info */}
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">Voyage Status</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Destination:</span>
-                      <span className="font-medium">{destination.destination_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Elapsed Time:</span>
-                      <span className="font-mono">{formatTime(elapsedTime)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Weather:</span>
-                      <span>{getWeatherEmoji()} {weatherMood}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Distractions:</span>
-                      <span className={distractionCount > 0 ? 'text-orange-600' : 'text-green-600'}>
-                        {distractionCount}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+            <Card className="p-6 w-80 max-h-96 overflow-y-auto">
+              <h3 className="font-semibold mb-4">Sailing Controls</h3>
 
-                {/* Audio Controls */}
+              <div className="space-y-6">
                 <div>
-                  <h4 className="font-medium text-gray-700 mb-2">Audio</h4>
-                  <div className="flex items-center space-x-3">
-                    <button
-                      onClick={toggleMute}
-                      className={`p-2 rounded-lg transition-colors ${
-                        isMuted ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
-                      }`}
-                    >
-                      {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                    </button>
+                  <label className="block text-sm font-medium mb-3">
+                    Ambient Volume: {isMuted ? 'Muted' : `${Math.round(volume * 100)}%`}
+                  </label>
+                  <div className="relative">
+                    {/* Custom styled range input */}
                     <input
                       type="range"
                       min="0"
                       max="1"
-                      step="0.1"
+                      step="0.05"
                       value={isMuted ? 0 : volume}
                       onChange={handleVolumeChange}
-                      className="flex-1 volume-slider"
+                      className="volume-slider w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                     />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500 mt-2">
+                    <span>Mute</span>
+                    <span>Max</span>
                   </div>
                 </div>
 
-                {/* Debug Information */}
-                {import.meta.env.DEV && (
-                  <div className="border-t pt-4">
-                    <h4 className="font-medium text-gray-700 mb-2">Debug Info</h4>
-                    <div className="text-xs text-gray-600 space-y-1">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <p className="font-medium">Detection Status:</p>
-                          <p>Monitoring: {isMonitoring ? '✅ Active' : '❌ Inactive'}</p>
-                          <p>Distracted: {isDistracted ? '🚨 Yes' : '✅ No'}</p>
-                          <p>Exploring: {isExploring ? '🧭 Yes' : '❌ No'}</p>
-                          <p>Type: {distractionType || 'None'}</p>
+                <div className="border-t pt-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-700">Audio:</span>
+                      <span className={`ml-2 ${isPlaying ? 'text-green-600' : 'text-red-600'}`}>
+                        {isPlaying ? (isMuted ? 'Muted' : 'Playing') : 'Stopped'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Monitoring:</span>
+                      <span className={`ml-2 ${isMonitoring ? 'text-green-600' : 'text-gray-500'}`}>
+                        {isMonitoring ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="font-medium text-gray-700">Mode:</span>
+                      <span className={`ml-2 ${isExploring ? 'text-purple-600' : 'text-blue-600'}`}>
+                        {isExploring ? 'Exploration' : 'Focus'}
+                      </span>
+                    </div>
+                    
+                    {/* Advanced monitoring status */}
+                    <div className="col-span-2 border-t pt-2">
+                      <p className="text-sm font-medium text-gray-700 mb-2">AI Monitoring Status:</p>
+                      <div className="text-xs space-y-1">
+                        <div className="flex justify-between">
+                          <span>Camera:</span>
+                          <span className={diagnostics.cameraAvailable ? 'text-green-600' : 'text-gray-500'}>
+                            {diagnostics.cameraAvailable ? 'Active' : 'Not available'}
+                          </span>
                         </div>
-                        <div>
-                          <p className="font-medium">Systems:</p>
-                          <p>Tab Switch: {diagnostics.tabSwitch?.isDistracted ? '🚨 Alert' : '✅ OK'}</p>
-                          <p>URL Check: {diagnostics.url?.isDistracted ? '🚨 Alert' : '✅ OK'}</p>
-                          <p>Combined: {diagnostics.combined?.isDistracted ? '🚨 Alert' : '✅ OK'}</p>
+                        <div className="flex justify-between">
+                          <span>Combined Analysis:</span>
+                          <span className={diagnostics.combined?.isActive ? 'text-green-600' : 'text-gray-500'}>
+                            {diagnostics.combined?.isActive ? 'Active (60s)' : 'Inactive'}
+                          </span>
                         </div>
-                      </div>
-                      
-                      {/* Camera Analysis */}
-                      {diagnostics.combined?.lastCameraAnalysis && (
-                        <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                          <p className="font-medium">📹 Camera Analysis:</p>
-                          <p>👤 User: {diagnostics.combined.lastCameraAnalysis.userPresent ? 
-                            '✅ Present' : '❌ Absent'} | 
+                        <div className="flex justify-between">
+                          <span>Gemini AI:</span>
+                          <span className={diagnostics.geminiConfigured ? 'text-green-600' : 'text-yellow-600'}>
+                            {diagnostics.geminiConfigured ? 'Connected' : 'Not configured'}
+                          </span>
+                        </div>
+                        {(isDistracted || diagnostics.combined?.isDistracted || diagnostics.url?.isDistracted) && (
+                          <div className="mt-2 text-red-600">
+                            <span>Overall Status: 🚨 DISTRACTED ({distractionType})</span>
+                          </div>
+                        )}
+                        {diagnostics.combined?.lastCameraAnalysis && (
+                          <div className="mt-2 text-xs text-blue-600">
+                            <p>📷 Camera: {diagnostics.combined.lastCameraAnalysis.personPresent ? '✅ Present' : '❌ Absent'} | 
                             {diagnostics.combined.lastCameraAnalysis.appearsFocused ? ' ✅ Focused' : ' ❌ Distracted'}</p>
-                        </div>
-                      )}
-                      
-                      {/* Screen Analysis */}
-                      {diagnostics.combined?.lastScreenshotAnalysis?.screenAnalysis && (
-                        <div className="mt-1 text-xs text-green-600">
-                          <p>🖥️ Screen: {diagnostics.combined.lastScreenshotAnalysis.screenAnalysis.contentType} | 
-                          {diagnostics.combined.lastScreenshotAnalysis.screenAnalysis.isProductiveContent ? ' ✅ Productive' : ' ❌ Distracting'}</p>
-                        </div>
-                      )}
-                      
-                      {/* URL Information */}
-                      {diagnostics.url?.currentUrl && (
-                        <div className="mt-2 text-xs text-gray-600">
-                          <p>🔗 Current URL: {diagnostics.url.currentUrl.length > 50 ? 
-                            diagnostics.url.currentUrl.substring(0, 50) + '...' : 
-                            diagnostics.url.currentUrl}</p>
-                          <p>URL Status: {diagnostics.url?.isDistracted ? '🚨 Distracting' : '✅ Relevant'}</p>
-                        </div>
-                      )}
-                      
-                      {/* Distraction Level */}
-                      {(diagnostics.combined?.lastScreenshotAnalysis?.distractionLevel && 
-                        diagnostics.combined.lastScreenshotAnalysis.distractionLevel !== 'none') && (
-                        <div className="mt-1 text-xs text-orange-600">
-                          <p>⚠️ Distraction Level: {diagnostics.combined.lastScreenshotAnalysis.distractionLevel}</p>
-                          <p>💡 Suggested Action: {diagnostics.combined.lastScreenshotAnalysis.suggestedAction}</p>
-                        </div>
-                      )}
+                          </div>
+                        )}
+                        {diagnostics.combined?.lastScreenshotAnalysis?.screenAnalysis && (
+                          <div className="mt-1 text-xs text-green-600">
+                            <p>🖥️ Screen: {diagnostics.combined.lastScreenshotAnalysis.screenAnalysis.contentType} | 
+                            {diagnostics.combined.lastScreenshotAnalysis.screenAnalysis.isProductiveContent ? ' ✅ Productive' : ' ❌ Distracting'}</p>
+                          </div>
+                        )}
+                         {diagnostics.url?.currentUrl && (
+                           <div className="mt-2 text-xs text-gray-600">
+                             <p>🔗 Current URL: {diagnostics.url.currentUrl.length > 50 ? 
+                               diagnostics.url.currentUrl.substring(0, 50) + '...' : 
+                               diagnostics.url.currentUrl}</p>
+                             <p>URL Status: {diagnostics.url?.isDistracted ? '🚨 Distracting' : '✅ Relevant'}</p>
+                           </div>
+                         )}
+                        {(diagnostics.combined?.lastScreenshotAnalysis?.distractionLevel && 
+                          diagnostics.combined.lastScreenshotAnalysis.distractionLevel !== 'none') && (
+                          <div className="mt-1 text-xs text-orange-600">
+                            <p>⚠️ Distraction Level: {diagnostics.combined.lastScreenshotAnalysis.distractionLevel}</p>
+                            <p>💡 Suggested Action: {diagnostics.combined.lastScreenshotAnalysis.suggestedAction}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="mt-2 pt-2 border-t text-xs text-gray-400">
                       <p>🔍 Active Detection Systems:</p>
-                      <p>• Tab switch detection (5s timeout)</p>
-                      <p>• URL blacklist monitoring (real-time)</p>
+                      <p>• Tab switch detection (instant)</p>
+                      <p>• URL blacklist monitoring (15s timeout for testing)</p>
                       <p>• Combined screenshot + camera analysis (60s interval)</p>
                       <p>• Idle detection (90s timeout)</p>
-                      <p>• Activity monitoring (mouse/keyboard)</p>
+                      <p>• Debouncing: 5s minimum between distractions</p>
                     </div>
                   </div>
-                )}
+                </div>
 
-                {/* Recent Notes */}
                 {inspirationNotes.length > 0 && (
                   <div className="border-t pt-4">
                     <p className="text-sm font-medium mb-2">Recent Notes:</p>
                     <div className="max-h-16 overflow-y-auto text-xs text-gray-600 space-y-1">
                       {inspirationNotes.slice(-3).map((note, index) => (
                         <div key={index} className="p-2 bg-gray-50 rounded">
-                          {note.type === 'voice' ? '🎤' : '📝'} {note.content.slice(0, 50)}
-                          {note.content.length > 50 ? '...' : ''}
+                          {note.type === 'voice' ? '🎤' : '📝'} {note.content.slice(0, 40)}...
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Action Buttons */}
-                <div className="space-y-2">
+                <div className="border-t pt-4">
                   <Button
                     onClick={handleEndVoyage}
-                    variant="secondary"
+                    variant="outline"
+                    size="sm"
                     className="w-full"
+                    icon={ArrowLeft}
                   >
-                    <ArrowLeft className="w-4 h-4 mr-2" />
                     End Voyage
                   </Button>
                 </div>
@@ -469,86 +541,49 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         )}
       </AnimatePresence>
 
-      {/* Main HUD */}
-      <div className="absolute top-4 left-4 z-10">
-        <Card className="p-4 bg-white/10 backdrop-blur-sm text-white">
-          <div className="flex items-center space-x-4">
-            <div className="text-center">
-              <div className="text-2xl font-mono">{formatTime(elapsedTime)}</div>
-              <div className="text-sm opacity-75">sailing time</div>
-            </div>
-            <div className="w-px h-8 bg-white/20"></div>
-            <div className="text-center">
-              <div className="text-xl">{getWeatherEmoji()}</div>
-              <div className="text-sm opacity-75">{weatherMood}</div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Destination Info */}
-      <div className="absolute bottom-4 left-4 z-10">
-        <Card className="p-4 bg-white/10 backdrop-blur-sm text-white max-w-md">
-          <div className="flex items-start space-x-3">
-            <Compass className="w-6 h-6 mt-1 flex-shrink-0" style={{ color: destination.color_theme }} />
-            <div>
-              <h3 className="font-semibold text-lg">{destination.destination_name}</h3>
-              <p className="text-sm opacity-75 mt-1">{destination.description}</p>
-              {distractionCount > 0 && (
-                <p className="text-xs text-yellow-200 mt-2">
-                  ⚠️ {distractionCount} course correction{distractionCount !== 1 ? 's' : ''} so far
-                </p>
-              )}
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Camera View */}
-      {cameraPermissionGranted && (
-        <div className="absolute bottom-4 right-4 z-10">
-          <CameraView
-            stream={cameraStream}
-            onStreamChange={handleCameraStream}
-            className="w-32 h-24 rounded-lg border-2 border-white/20"
-          />
-        </div>
-      )}
-
-      {/* Seagull Companion */}
-      <AnimatePresence>
-        {showSeagull && (
-          <SeagullCompanion
-            onClose={() => setShowSeagull(false)}
-            message="Great insight captured! 🌊"
-            position={{ x: 70, y: 20 }}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Distraction Alert */}
       <DistractionAlert
         isVisible={showDistractionAlert}
         onResponse={handleDistractionChoice}
-        distractionType={distractionType}
-        duration={diagnostics.tabSwitch?.startTime ? Date.now() - diagnostics.tabSwitch.startTime : undefined}
+        distractionType={distractionType || 'tab_switch'}
+        duration={elapsedTime}
       />
 
       {/* Exploration Mode */}
-      <AnimatePresence>
-        {isExploring && (
-          <ExplorationMode
-            onReturnToCourse={handleReturnToCourse}
-            onCaptureInspiration={handleCaptureInspiration}
-          />
-        )}
-      </AnimatePresence>
+      <ExplorationMode
+        isActive={isExploring}
+        onReturnToCourse={handleReturnToCourse}
+        onCaptureInspiration={handleCaptureInspiration}
+      />
 
-      {/* Volume Slider Styles */}
+      {/* Seagull Companion */}
+      <SeagullCompanion
+        isVisible={showSeagull}
+        voyageTime={elapsedTime}
+        distractionCount={distractionCount}
+        onDismiss={() => setShowSeagull(false)}
+      />
+
+      {/* Bottom Info */}
+      <div className="absolute bottom-4 left-4 right-4 z-10">
+        <div className="bg-white/20 backdrop-blur-sm rounded-lg px-6 py-3">
+          <p className="text-white text-center">
+            Sailing to <strong>{destination.destination_name}</strong>
+          </p>
+          <p className="text-white/80 text-sm text-center mt-1">
+            {destination.description}
+          </p>
+          {!diagnostics.geminiConfigured && (
+            <p className="text-yellow-300 text-xs text-center mt-2">
+              💡 Add Gemini API key for advanced AI monitoring
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Custom CSS for volume slider */}
       <style>{`
         .volume-slider {
-          height: 8px;
-          border-radius: 4px;
           background: linear-gradient(to right, #3B82F6 0%, #3B82F6 ${(isMuted ? 0 : volume) * 100}%, #E5E7EB ${(isMuted ? 0 : volume) * 100}%, #E5E7EB 100%);
         }
         
