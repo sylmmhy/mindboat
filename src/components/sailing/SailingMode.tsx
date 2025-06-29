@@ -14,11 +14,10 @@ import { useAdvancedDistraction } from '../../hooks/useAdvancedDistraction';
 import { useAudio } from '../../hooks/useAudio';
 import { useVoiceInteraction } from '../../hooks/useVoiceInteraction';
 import { useNotificationStore } from '../../stores/notificationStore';
-import { 
-  getHighPrecisionTime, 
-  calculatePreciseDuration, 
+import {
+  getHighPrecisionTime,
   formatPreciseDuration,
-  createPrecisionInterval 
+  createPrecisionInterval
 } from '../../utils/precisionTimer';
 import { GeminiService } from '../../services/GeminiService';
 import type { Destination } from '../../types';
@@ -40,11 +39,14 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const [cameraPermissionGranted, setCameraPermissionGranted] = useState(false);
   const [showVoicePanel, setShowVoicePanel] = useState(false);
 
+  // Ref to track previous distraction state to prevent repetitive logs
+  const prevDistractionStateRef = useRef({ isDistracted: false, isVoiceEnabled: false });
+
   // Use stable selectors to prevent unnecessary re-renders
   const currentVoyage = useVoyageStore(state => state.currentVoyage);
   const distractionCount = useVoyageStore(state => state.distractionCount);
   const endVoyage = useVoyageStore(state => state.endVoyage);
-  
+
   const { showSuccess } = useNotificationStore();
 
   // High-precision timer
@@ -99,15 +101,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const {
     isDistracted,
     distractionType,
-    confidenceLevel,
     isMonitoring,
-    lastAnalysisResults,
-    diagnostics,
     handleDistractionResponse
-  } = useAdvancedDistraction({ 
-    isExploring, 
+  } = useAdvancedDistraction({
+    isExploring,
     currentDestination: destination,
-    cameraStream 
+    cameraStream
   });
 
   const {
@@ -128,7 +127,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     isSpeaking,
     voiceStatus,
     handleVoiceDistractionAlert,
-    captureVoiceInspiration,
     announceVoyageCompletion
   } = useVoiceInteraction({
     isVoyageActive: !!currentVoyage,
@@ -141,7 +139,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   useEffect(() => {
     // Initialize Gemini service
     GeminiService.initialize();
-    
+
     // Small delay to ensure audio system is ready
     const timer = setTimeout(() => {
       startAmbientSound();
@@ -165,14 +163,13 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   useEffect(() => {
     if (currentVoyage?.id) {
       startTimeRef.current = new Date(currentVoyage.start_time).getTime();
-      
+
       timerRef.current = createPrecisionInterval((elapsedMs) => {
         setElapsedTime(elapsedMs);
 
         // Show milestone notifications at precise intervals
-        const elapsedMinutes = Math.floor(elapsedMs / 60000);
         const elapsedSeconds = Math.floor(elapsedMs / 1000);
-        
+
         // 30-minute milestone
         if (elapsedSeconds === 1800 && !localStorage.getItem(`milestone-30-${currentVoyage.id}`)) {
           showSuccess('30 minutes of sustained focus!', 'Great Achievement');
@@ -184,7 +181,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           localStorage.setItem(`milestone-60-${currentVoyage.id}`, 'true');
         }
       }, 100); // Update every 100ms for smooth display
-      
+
       timerRef.current.start();
     }
 
@@ -197,32 +194,42 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
   // Enhanced distraction alert effect with voice integration
   useEffect(() => {
-    console.log('🚨 [SAILING] Distraction state changed:', {
-      isDistracted,
-      isExploring,
-      showDistractionAlert,
-      distractionType,
-      isVoiceEnabled
-    });
+    // Only log if the important states actually changed
+    const currentState = { isDistracted, isVoiceEnabled };
+    const prevState = prevDistractionStateRef.current;
 
-    if (isDistracted && !isExploring) {
+    if (currentState.isDistracted !== prevState.isDistracted ||
+      currentState.isVoiceEnabled !== prevState.isVoiceEnabled) {
+      console.log('🚨 [SAILING] Distraction state changed:', {
+        isDistracted,
+        isExploring,
+        showDistractionAlert,
+        distractionType,
+        isVoiceEnabled
+      });
+      prevDistractionStateRef.current = currentState;
+    }
+
+    if (isDistracted && !isExploring && !showDistractionAlert) {
       console.log('🚨 [SAILING] ⚠️ SHOWING DISTRACTION ALERT');
       setShowDistractionAlert(true);
-      
+
+      // Note: Voice alert is handled by EnhancedDistractionAlert component
+
       if (weatherMood !== 'stormy') {
         setWeatherMood('stormy');
         setAudioWeatherMood('stormy');
       }
-    } else if (!isExploring) {
+    } else if (!isDistracted && !isExploring && showDistractionAlert) {
       console.log('🚨 [SAILING] ✅ Clearing distraction alert');
       setShowDistractionAlert(false);
-      
+
       if (weatherMood !== 'sunny') {
         setWeatherMood('sunny');
         setAudioWeatherMood('sunny');
       }
     }
-  }, [isDistracted, isExploring, weatherMood, setAudioWeatherMood, distractionType, isVoiceEnabled]);
+  }, [isDistracted, isExploring, showDistractionAlert, distractionType, isVoiceEnabled, handleVoiceDistractionAlert, weatherMood, setAudioWeatherMood]);
 
   // Boat animation effect
   useEffect(() => {
@@ -267,6 +274,10 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   // Update handleDistractionChoice to use handleDistractionResponse
   const handleDistractionChoiceWithResponse = useCallback(async (choice: 'return_to_course' | 'exploring') => {
     console.log('🚨 [SAILING] Handling distraction choice with response:', choice);
+
+    // Clear the distraction alert immediately when user responds
+    setShowDistractionAlert(false);
+
     await handleDistractionResponse(choice);
     await handleDistractionChoice(choice);
   }, [handleDistractionResponse, handleDistractionChoice]);
@@ -415,9 +426,9 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             </div>
           )}
         </div>
-        
+
         {/* Camera View Component */}
-        <CameraView 
+        <CameraView
           isActive={true}
           onCameraStream={handleCameraStream}
         />
@@ -511,7 +522,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                         {isExploring ? 'Exploration' : 'Focus'}
                       </span>
                     </div>
-                    
+
                     {/* Voice status */}
                     <div className="col-span-2 border-t pt-2">
                       <p className="text-sm font-medium text-gray-700 mb-2">Voice Assistant Status:</p>
@@ -579,7 +590,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       <EnhancedDistractionAlert
         isVisible={showDistractionAlert}
         onResponse={handleDistractionChoiceWithResponse}
-        distractionType={distractionType || 'tab_switch'}
+        distractionType={(distractionType as 'tab_switch' | 'idle' | 'camera_distraction' | 'camera_absence' | 'blacklisted_content' | 'irrelevant_content') || 'tab_switch'}
         duration={elapsedTime}
         enableVoice={isVoiceEnabled}
       />

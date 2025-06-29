@@ -5,9 +5,9 @@
  * intelligent response handling and exploration mode support.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, ArrowLeft, Compass, Mic, Volume2, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Compass, Mic, Volume2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { VoiceService } from '../../services/VoiceService';
@@ -29,12 +29,11 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
 }) => {
   const [selectedResponse, setSelectedResponse] = useState<string | null>(null);
   const [voiceResponseReceived, setVoiceResponseReceived] = useState(false);
-  const [showVoicePrompt, setShowVoicePrompt] = useState(false);
   const [voiceAlertTriggered, setVoiceAlertTriggered] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState(VoiceService.getStatus());
-  
+
   const voiceAlertAttempted = useRef(false);
 
   // Update voice status
@@ -54,9 +53,8 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
         voiceFeatures: voiceStatus.features,
         timestamp: new Date().toISOString()
       });
-      
+
       setVoiceResponseReceived(false);
-      setShowVoicePrompt(false);
       setVoiceAlertTriggered(false);
       setIsSpeaking(false);
       setIsListening(false);
@@ -67,29 +65,49 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
     }
   }, [isVisible, distractionType, enableVoice, voiceStatus]);
 
+  const handleResponse = useCallback((response: 'return_to_course' | 'exploring') => {
+    console.log('🚨 [ALERT] ✅ Response selected:', response);
+    setSelectedResponse(response);
+
+    // Stop any ongoing voice activities
+    VoiceService.stopListening();
+    setIsListening(false);
+    setIsSpeaking(false);
+
+    setTimeout(() => {
+      onResponse(response);
+      setSelectedResponse(null);
+      setVoiceResponseReceived(false);
+      setVoiceAlertTriggered(false);
+    }, 500);
+  }, [onResponse]);
+
   // Trigger voice alert when distraction becomes visible
   useEffect(() => {
-    if (isVisible && 
-        enableVoice && 
-        voiceStatus.features.speechRecognition && 
-        !voiceResponseReceived && 
-        !voiceAlertAttempted.current) {
-      
+    // Destructure for stable dependencies
+    const isSpeechRecognitionAvailable = voiceStatus.features.speechRecognition;
+
+    if (isVisible &&
+      enableVoice &&
+      isSpeechRecognitionAvailable &&
+      !voiceResponseReceived &&
+      !voiceAlertAttempted.current) {
+
       console.log('🎤 [ALERT] 🚨 TRIGGERING VOICE ALERT:', {
         distractionType,
         voiceFeatures: voiceStatus.features,
         timestamp: new Date().toISOString()
       });
-      
+
       voiceAlertAttempted.current = true;
-      
+
       const triggerVoiceAlert = async () => {
         try {
           setVoiceAlertTriggered(true);
           setIsSpeaking(true);
-          
+
           console.log('🎤 [ALERT] 🔊 Starting voice distraction alert...');
-          
+
           // Call VoiceService directly with proper error handling
           await VoiceService.handleDistractionAlert(distractionType, (response) => {
             console.log('🎤 [ALERT] ✅ Voice response received:', response);
@@ -98,22 +116,27 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
             setIsSpeaking(false);
             handleResponse(response);
           });
-          
+
           console.log('🎤 [ALERT] ✅ Voice alert initiated successfully');
-          setShowVoicePrompt(true);
-          
+
         } catch (error) {
           console.error('🎤 [ALERT] ❌ Voice alert failed:', error);
           setIsSpeaking(false);
           setIsListening(false);
-          setShowVoicePrompt(false);
         }
       };
 
       // Small delay to ensure UI is ready
       setTimeout(triggerVoiceAlert, 1000);
     }
-  }, [isVisible, enableVoice, voiceStatus.features.speechRecognition, distractionType, voiceResponseReceived]);
+  }, [
+    isVisible,
+    enableVoice,
+    voiceStatus.features.speechRecognition,
+    distractionType,
+    voiceResponseReceived,
+    handleResponse
+  ]);
 
   const getDistractionMessage = () => {
     switch (distractionType) {
@@ -149,24 +172,6 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
     }
   };
 
-  const handleResponse = (response: 'return_to_course' | 'exploring') => {
-    console.log('🚨 [ALERT] ✅ Response selected:', response);
-    setSelectedResponse(response);
-    
-    // Stop any ongoing voice activities
-    VoiceService.stopListening();
-    setIsListening(false);
-    setIsSpeaking(false);
-    
-    setTimeout(() => {
-      onResponse(response);
-      setSelectedResponse(null);
-      setVoiceResponseReceived(false);
-      setShowVoicePrompt(false);
-      setVoiceAlertTriggered(false);
-    }, 500);
-  };
-
   return (
     <AnimatePresence>
       {isVisible && (
@@ -184,12 +189,12 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
           >
             <Card className="max-w-md w-full p-8 text-center">
               <motion.div
-                animate={{ 
+                animate={{
                   rotate: [0, -5, 5, -5, 0],
                   scale: [1, 1.1, 1]
                 }}
-                transition={{ 
-                  duration: 2, 
+                transition={{
+                  duration: 2,
                   repeat: Infinity,
                   repeatType: 'reverse'
                 }}
@@ -201,11 +206,11 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
               <h2 className="text-2xl font-bold mb-4 text-gray-800">
                 Course Correction Needed
               </h2>
-              
+
               <p className="text-gray-600 mb-2">
                 {getDistractionMessage()}
               </p>
-              
+
               {duration && (
                 <p className="text-sm text-gray-500 mb-6">
                   Away for {Math.round(duration / 1000)} seconds
@@ -305,26 +310,24 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
               <div className="space-y-3">
                 <Button
                   onClick={() => handleResponse('return_to_course')}
-                  className={`w-full transition-all ${
-                    selectedResponse === 'return_to_course' 
-                      ? 'bg-green-600 scale-105' 
-                      : ''
-                  }`}
+                  className={`w-full transition-all ${selectedResponse === 'return_to_course'
+                    ? 'bg-green-600 scale-105'
+                    : ''
+                    }`}
                   size="lg"
                   icon={ArrowLeft}
                   disabled={selectedResponse !== null}
                 >
                   Return to Course
                 </Button>
-                
+
                 <Button
                   onClick={() => handleResponse('exploring')}
                   variant="outline"
-                  className={`w-full transition-all ${
-                    selectedResponse === 'exploring' 
-                      ? 'border-blue-600 bg-blue-50 scale-105' 
-                      : ''
-                  }`}
+                  className={`w-full transition-all ${selectedResponse === 'exploring'
+                    ? 'border-blue-600 bg-blue-50 scale-105'
+                    : ''
+                    }`}
                   size="lg"
                   icon={Compass}
                   disabled={selectedResponse !== null}
@@ -337,13 +340,13 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
                 <p className="text-xs text-gray-500">
                   Choose "I'm Exploring" to temporarily pause distraction detection
                 </p>
-                
+
                 {voiceStatus.features.speechRecognition && (
                   <p className="text-xs text-blue-600">
                     🎤 Voice interaction: Speak in English after the AI prompt
                   </p>
                 )}
-                
+
                 {!voiceStatus.features.elevenLabs && voiceStatus.features.speechRecognition && (
                   <p className="text-xs text-yellow-600">
                     💡 Add ElevenLabs API key to .env for AI voice responses
