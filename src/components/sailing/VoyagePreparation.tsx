@@ -7,6 +7,7 @@ import { Input } from '../ui/Input';
 import { useDestinationStore } from '../../stores/destinationStore';
 import { useDistraction } from '../../hooks/useDistraction';
 import { useUserStore } from '../../stores/userStore';
+import { ScreenshotService } from '../../services/ScreenshotService';
 import type { Destination } from '../../types';
 
 interface VoyagePreparationProps {
@@ -31,7 +32,6 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({
   const { destinations, createDestination, isLoading } = useDestinationStore();
   const { user } = useUserStore();
   const { requestPermissions, permissionsGranted } = useDistraction();
-  const { ScreenshotService } = await import('../../services/ScreenshotService');
 
   const handleDestinationSelect = (destination: Destination) => {
     setSelectedDestination(destination);
