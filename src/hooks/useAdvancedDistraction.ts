@@ -404,6 +404,18 @@ export const useAdvancedDistraction = ({
     setCombinedState(prev => ({ ...prev, isActive: true }));
     
     try {
+      // Check if screen sharing is available (should be granted during voyage prep)
+      const { ScreenshotService } = await import('../services/ScreenshotService');
+      if (!ScreenshotService.isPermissionGranted()) {
+        debugLog('COMBINED', 'Screen sharing not available - skipping screenshot analysis');
+        setCombinedState(prev => ({ 
+          ...prev, 
+          isActive: false,
+          error: 'Screen sharing permission not granted' 
+        }));
+        return;
+      }
+
       // Take screenshot
       const screenshot = await ScreenshotService.captureScreenshot(cameraStream);
       if (!screenshot) {

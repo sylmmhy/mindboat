@@ -29,7 +29,15 @@ export class ScreenshotService {
   }
 
   /**
+   * Check if screen sharing permission is already granted
+   */
+  static isPermissionGranted(): boolean {
+    return this.permissionGranted && !!this.screenStream;
+  }
+
+  /**
    * Request screen capture permission once and store the stream
+   * This is now called during voyage preparation instead of first screenshot
    */
   static async requestScreenPermission(): Promise<boolean> {
     if (this.permissionGranted && this.screenStream) {
@@ -65,15 +73,13 @@ export class ScreenshotService {
 
   /**
    * Capture a screenshot of the current page including camera view
+   * Now uses pre-granted permission instead of requesting it
    */
   static async captureScreenshot(cameraStream?: MediaStream): Promise<ScreenshotData> {
     try {
-      // Ensure we have screen permission
+      // Check if we have screen permission (should be granted during voyage preparation)
       if (!this.permissionGranted || !this.screenStream) {
-        const hasPermission = await this.requestScreenPermission();
-        if (!hasPermission) {
-          throw new Error('Screen capture permission denied or not available');
-        }
+        throw new Error('Screen capture permission not granted. Please grant permission during voyage preparation.');
       }
 
       const pageStream = this.screenStream!;
