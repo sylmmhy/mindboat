@@ -279,14 +279,14 @@ export const useAdvancedDistraction = ({
   const checkUrlForDistraction = useCallback(() => {
     const currentUrl = window.location.href;
     
-    debugLog('URL', 'Checking URL for distraction', { currentUrl });
+    debugLog('URL', '🔍 Checking URL for distraction', { currentUrl });
     
     // Update current URL in state
     setUrlState(prev => ({ ...prev, currentUrl }));
 
     // Skip check if URL is whitelisted
     if (isUrlWhitelisted(currentUrl)) {
-      debugLog('URL', 'URL is whitelisted, clearing any distraction', { currentUrl });
+      debugLog('URL', '✅ URL is whitelisted, clearing any distraction', { currentUrl });
       setUrlState(prev => ({
         ...prev,
         isDistracted: false,
@@ -300,11 +300,21 @@ export const useAdvancedDistraction = ({
     const isBlacklisted = isUrlBlacklisted(currentUrl);
     const isIrrelevant = !isUrlRelevantToTask(currentUrl) && !isBlacklisted;
 
+    debugLog('URL', '🔍 URL analysis', { 
+      currentUrl, 
+      isBlacklisted, 
+      isIrrelevant,
+      isRelevant: isUrlRelevantToTask(currentUrl)
+    });
+
     if (isBlacklisted) {
-      debugLog('URL', 'Blacklisted content detected', { currentUrl });
+      debugLog('URL', '🚨 BLACKLISTED content detected!', { currentUrl });
       setUrlState(prev => {
         if (!prev.startTime || prev.distractionType !== 'blacklisted_content') {
-          debugLog('URL', 'Started tracking blacklisted content', { currentUrl });
+          debugLog('URL', '⏱️ Started tracking blacklisted content - 5min timer started', { 
+            currentUrl, 
+            threshold: DISTRACTION_THRESHOLDS.BLACKLIST_THRESHOLD / 1000 + 's'
+          });
           return {
             ...prev,
             startTime: currentTime,
@@ -313,11 +323,20 @@ export const useAdvancedDistraction = ({
         } else {
           // Check if blacklisted duration exceeds threshold
           const blacklistedDuration = currentTime - prev.startTime;
+          const remainingTime = DISTRACTION_THRESHOLDS.BLACKLIST_THRESHOLD - blacklistedDuration;
+          
+          debugLog('URL', '⏱️ Still on blacklisted content', { 
+            currentUrl,
+            duration: Math.round(blacklistedDuration / 1000) + 's',
+            remaining: Math.round(remainingTime / 1000) + 's',
+            threshold: DISTRACTION_THRESHOLDS.BLACKLIST_THRESHOLD / 1000 + 's'
+          });
           
           if (blacklistedDuration > DISTRACTION_THRESHOLDS.BLACKLIST_THRESHOLD && !prev.isDistracted) {
-            debugLog('URL', '🚨 Blacklist distraction triggered!', { 
-              blacklistedDuration, 
-              threshold: DISTRACTION_THRESHOLDS.BLACKLIST_THRESHOLD 
+            debugLog('URL', '🚨🚨 BLACKLIST DISTRACTION TRIGGERED! User on blacklisted site too long!', { 
+              currentUrl,
+              blacklistedDuration: Math.round(blacklistedDuration / 1000) + 's', 
+              threshold: DISTRACTION_THRESHOLDS.BLACKLIST_THRESHOLD / 1000 + 's'
             });
 
             // Record distraction
@@ -336,10 +355,13 @@ export const useAdvancedDistraction = ({
         }
       });
     } else if (isIrrelevant) {
-      debugLog('URL', 'Irrelevant content detected', { currentUrl });
+      debugLog('URL', '⚠️ Irrelevant content detected', { currentUrl });
       setUrlState(prev => {
         if (!prev.startTime || prev.distractionType !== 'irrelevant_content') {
-          debugLog('URL', 'Started tracking irrelevant content', { currentUrl });
+          debugLog('URL', '⏱️ Started tracking irrelevant content - 5min timer started', { 
+            currentUrl,
+            threshold: DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD / 1000 + 's'
+          });
           return {
             ...prev,
             startTime: currentTime,
@@ -348,11 +370,19 @@ export const useAdvancedDistraction = ({
         } else {
           // Check if irrelevant duration exceeds threshold
           const irrelevantDuration = currentTime - prev.startTime;
+          const remainingTime = DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD - irrelevantDuration;
+          
+          debugLog('URL', '⏱️ Still on irrelevant content', { 
+            currentUrl,
+            duration: Math.round(irrelevantDuration / 1000) + 's',
+            remaining: Math.round(remainingTime / 1000) + 's'
+          });
           
           if (irrelevantDuration > DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD && !prev.isDistracted) {
-            debugLog('URL', '🚨 Irrelevant content distraction triggered!', { 
-              irrelevantDuration, 
-              threshold: DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD 
+            debugLog('URL', '🚨🚨 IRRELEVANT CONTENT DISTRACTION TRIGGERED!', { 
+              currentUrl,
+              irrelevantDuration: Math.round(irrelevantDuration / 1000) + 's', 
+              threshold: DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD / 1000 + 's'
             });
 
             // Record distraction
@@ -374,7 +404,7 @@ export const useAdvancedDistraction = ({
       // URL is relevant - clear URL-related distraction
       setUrlState(prev => {
         if (prev.isDistracted || prev.startTime) {
-          debugLog('URL', '✅ URL distraction cleared - relevant content', { currentUrl });
+          debugLog('URL', '✅ URL distraction cleared - back to relevant content', { currentUrl });
         }
         return {
           ...prev,

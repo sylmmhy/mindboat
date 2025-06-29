@@ -476,8 +476,11 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                       </div>
                     </div>
                     <div className="mt-2 pt-2 border-t text-xs text-gray-400">
-                      <p>🔍 Tab switch detection + Combined analysis (60s)</p>
-                      <p>Screenshot analysis includes camera view for efficiency</p>
+                      <p>🔍 Active Detection Systems:</p>
+                      <p>• Tab switch detection (instant)</p>
+                      <p>• URL blacklist monitoring (5min timeout)</p>
+                      <p>• Combined screenshot + camera analysis (60s)</p>
+                      <p>• Idle detection (90s timeout)</p>
                     </div>
                   </div>
                 </div>
