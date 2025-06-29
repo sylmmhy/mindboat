@@ -309,7 +309,7 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
           timestamp: distractionStartTime.current,
         });
       }
-    }, 90000); // Reduced from 120 seconds to 90 seconds
+    }, 30000); // Reduced from 120 seconds to 90 seconds
   }, [shouldMonitor, recordDistraction, checkUrlChange, debugLog]);
 
   // Enhanced distraction detection with multiple methods
