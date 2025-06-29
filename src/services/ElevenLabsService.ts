@@ -31,7 +31,7 @@ export class ElevenLabsService {
   private static config: ElevenLabsConfig = {
     apiKey: '',
     voiceId: 'pNInz6obpgDQGcFmaJgB', // Adam voice - calm and professional
-    model: 'eleven_multilingual_v2', // Supports Chinese
+    model: 'eleven_multilingual_v2', // Supports multiple languages
     stability: 0.5,
     similarityBoost: 0.8,
     style: 0.3,
@@ -185,11 +185,11 @@ export class ElevenLabsService {
    */
   static async speakDistractionAlert(distractionType: string): Promise<void> {
     const messages = {
-      tab_switch: "船长，你似乎偏航了，需要返回主航道吗？",
-      idle: "船长，你似乎在休息。是否需要继续航行？",
-      camera_distraction: "船长，我注意到你离开了工作区域。要返回航道吗？",
-      social_media: "船长，我们似乎驶入了社交媒体的海域。是否返回目标航道？",
-      entertainment: "船长，娱乐的海湾很诱人，但我们的目标在远方。要继续前进吗？"
+      tab_switch: "Captain, you seem to have drifted off course. Do you need to return to the main route?",
+      idle: "Captain, you appear to be resting. Would you like to continue sailing?",
+      camera_distraction: "Captain, I notice you've left your workstation. Shall we return to course?",
+      social_media: "Captain, we seem to have sailed into social media waters. Should we return to our target route?",
+      entertainment: "Captain, the entertainment bay is tempting, but our destination lies ahead. Shall we continue forward?"
     };
 
     const message = messages[distractionType as keyof typeof messages] || messages.tab_switch;
@@ -209,7 +209,7 @@ export class ElevenLabsService {
    * Generate exploration mode confirmation
    */
   static async speakExplorationConfirmation(): Promise<void> {
-    const message = "收到，船长！勘探模式已开启。请随时记录你的发现，或呼叫我返回主航道。";
+    const message = "Roger, Captain! Exploration mode is now active. Feel free to record your discoveries, or call me to return to the main course.";
     
     await this.generateAndPlayVoice({
       text: message,
@@ -226,7 +226,7 @@ export class ElevenLabsService {
    * Generate return to course confirmation
    */
   static async speakReturnConfirmation(): Promise<void> {
-    const message = "很好，船长！让我们重新设定航向，专注前进。";
+    const message = "Excellent, Captain! Let's reset our heading and focus forward.";
     
     await this.generateAndPlayVoice({
       text: message,
@@ -244,8 +244,8 @@ export class ElevenLabsService {
    */
   static async speakInspirationConfirmation(noteType: 'text' | 'voice'): Promise<void> {
     const messages = {
-      text: "灵感已记录在航海日志中，船长。继续你的探索吧！",
-      voice: "语音笔记已保存，船长。你的想法很有价值！"
+      text: "Inspiration has been recorded in your sailing log, Captain. Continue your exploration!",
+      voice: "Voice note has been saved, Captain. Your thoughts are valuable!"
     };
     
     await this.generateAndPlayVoice({
@@ -263,7 +263,7 @@ export class ElevenLabsService {
    * Generate voyage completion celebration
    */
   static async speakVoyageCompletion(destinationName: string, duration: string): Promise<void> {
-    const message = `恭喜船长！你已成功到达${destinationName}，航行时间${duration}。这是一次出色的专注之旅！`;
+    const message = `Congratulations, Captain! You have successfully reached ${destinationName}, with a sailing time of ${duration}. This was an excellent focused journey!`;
     
     await this.generateAndPlayVoice({
       text: message,

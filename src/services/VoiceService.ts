@@ -32,7 +32,7 @@ export class VoiceService {
   private static isInitialized = false;
   
   private static config: VoiceConfig = {
-    language: 'zh-CN', // Chinese for authentic experience
+    language: 'en-US', // English for voice recognition
     continuous: false,
     interimResults: true,
     maxAlternatives: 1
@@ -173,17 +173,18 @@ export class VoiceService {
   static analyzeDistractionResponse(transcript: string): VoiceInteractionResponse {
     const text = transcript.toLowerCase().trim();
     
-    // Chinese phrases for "I'm exploring"
+    // English phrases for "I'm exploring"
     const exploringPhrases = [
-      '我在探索', '我正在探索', '探索', '我在学习', '我在研究',
-      '我在看资料', '我在查资料', '我在工作', '这是工作相关的',
-      '我在思考', '我在查找', '我需要查一下', '工作需要'
+      'exploring', 'i\'m exploring', 'i am exploring', 'learning', 'researching',
+      'looking up', 'checking', 'working', 'work related', 'this is work',
+      'thinking', 'searching', 'need to check', 'work needs', 'studying'
     ];
     
-    // Chinese phrases for "return to course"
+    // English phrases for "return to course"
     const returnPhrases = [
-      '返回', '回到', '继续', '专注', '回到主航道', '返回航道',
-      '继续工作', '回到工作', '专心', '集中注意力', '好的', '是的'
+      'return', 'back', 'continue', 'focus', 'return to course', 'back to course',
+      'continue work', 'back to work', 'concentrate', 'focus up', 'okay', 'yes',
+      'got it', 'understood', 'will do'
     ];
 
     // Check for exploring intent
@@ -210,8 +211,8 @@ export class VoiceService {
 
     // Check if it's inspiration content
     const inspirationKeywords = [
-      '记录', '灵感', '想法', '笔记', '备注', '想到', '发现',
-      '学到', '总结', '心得', '体会', '感想', '收获'
+      'record', 'inspiration', 'idea', 'note', 'remember', 'thought', 'found',
+      'learned', 'summary', 'insight', 'reflection', 'discovery', 'takeaway'
     ];
 
     for (const keyword of inspirationKeywords) {

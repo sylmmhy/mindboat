@@ -187,7 +187,7 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
                       <span className="text-green-800 text-sm font-medium">正在聆听你的回应...</span>
                     </div>
                     <p className="text-xs text-green-600">
-                      说出"我在探索"或"返回航道"
+                      说出 "I'm exploring" 或 "return to course"
                     </p>
                   </motion.div>
                 )}
@@ -232,7 +232,7 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
                 
                 {isVoiceEnabled && (
                   <p className="text-xs text-blue-600">
-                    🎤 你也可以直接语音回应
+                    🎤 你也可以用英语语音回应
                   </p>
                 )}
                 
