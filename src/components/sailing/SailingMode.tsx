@@ -448,43 +448,24 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                           <span>Camera:</span>
                           <span className={diagnostics.cameraAvailable ? 'text-green-600' : 'text-gray-500'}>
                             {diagnostics.cameraAvailable ? 'Active' : 'Not available'}
-                      <span className={diagnostics.camera?.isActive ? 'text-green-600' : 'text-gray-500'}>
-                        {diagnostics.camera?.isActive ? (diagnostics.camera.isDistracted ? '🚨 Distracted' : '✅ Focused') : 'Not available'}
-                        <div className="flex justify-between">
-                          <span>Gemini AI:</span>
-                    {diagnostics.camera?.error && (
-                      <div className="text-xs text-red-500">
-                        Camera Error: {diagnostics.camera.error}
-                      </div>
-                    )}
-                          <span className={diagnostics.geminiConfigured ? 'text-green-600' : 'text-yellow-600'}>
-                      <span>Screenshot:</span>
-                      <span className={diagnostics.screenshot?.isActive ? 'text-green-600' : 'text-gray-500'}>
-                        {diagnostics.screenshot?.isActive ? (diagnostics.screenshot.isDistracted ? '🚨 Distracted' : '✅ Focused') : 'Not available'}
+                          </span>
+                        </div>
                         <div className="flex justify-between">
                           <span>Screenshot:</span>
-                    {diagnostics.screenshot?.error && (
-                      <div className="text-xs text-red-500">
-                        Screenshot Error: {diagnostics.screenshot.error}
-                      </div>
-                    )}
                           <span className={diagnostics.screenshotSupported ? 'text-green-600' : 'text-gray-500'}>
-                      <span>URL Monitor:</span>
-                      <span className={diagnostics.url?.isActive ? 'text-green-600' : 'text-gray-500'}>
-                        {diagnostics.url?.isActive ? (diagnostics.url.isDistracted ? '🚨 Distracted' : '✅ Safe') : 'Not available'}
-                        {isDistracted && (
-                          <div className="flex justify-between">
-                    <div className="flex justify-between">
-                      <span>Gemini AI:</span>
-                      <span className={diagnostics.geminiConfigured ? 'text-green-600' : 'text-yellow-600'}>
-                        {diagnostics.geminiConfigured ? 'Connected' : 'Not configured'}
-                      </span>
-                    </div>
-                    {(isDistracted || diagnostics.camera?.isDistracted || diagnostics.screenshot?.isDistracted || diagnostics.url?.isDistracted) && (
-                            <span className="text-red-600">
-                        <span>Overall Status:</span>
-                        <span className="text-red-600 font-medium">
-                          🚨 DISTRACTED ({distractionType})
+                            {diagnostics.screenshotSupported ? 'Supported' : 'Not supported'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Gemini AI:</span>
+                          <span className={diagnostics.geminiConfigured ? 'text-green-600' : 'text-yellow-600'}>
+                            {diagnostics.geminiConfigured ? 'Connected' : 'Not configured'}
+                          </span>
+                        </div>
+                        {(isDistracted || diagnostics.camera?.isDistracted || diagnostics.screenshot?.isDistracted || diagnostics.url?.isDistracted) && (
+                          <div className="mt-2 text-red-600">
+                            <span>Overall Status: 🚨 DISTRACTED ({distractionType})</span>
+                          </div>
                         )}
                       </div>
                     </div>
