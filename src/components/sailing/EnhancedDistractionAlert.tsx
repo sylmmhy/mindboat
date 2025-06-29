@@ -30,6 +30,7 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
   const [selectedResponse, setSelectedResponse] = useState<string | null>(null);
   const [voiceResponseReceived, setVoiceResponseReceived] = useState(false);
   const [showVoicePrompt, setShowVoicePrompt] = useState(false);
+  const [voiceAlertTriggered, setVoiceAlertTriggered] = useState(false);
 
   const {
     isVoiceEnabled,
@@ -37,44 +38,73 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
     handleVoiceDistractionAlert,
     voiceStatus
   } = useVoiceInteraction({
-    isVoyageActive: isVisible,
+    isVoyageActive: true, // Always active when alert is shown
     isExploring: false,
     onDistractionResponse: (response) => {
+      console.log('🎤 [ALERT] Voice response received:', response);
       setVoiceResponseReceived(true);
       handleResponse(response);
     }
   });
 
+  // Reset state when alert becomes visible
+  useEffect(() => {
+    if (isVisible) {
+      console.log('🚨 [ALERT] Distraction alert became visible:', {
+        distractionType,
+        enableVoice,
+        isVoiceEnabled,
+        voiceFeatures: voiceStatus.features
+      });
+      
+      setVoiceResponseReceived(false);
+      setShowVoicePrompt(false);
+      setVoiceAlertTriggered(false);
+    }
+  }, [isVisible, distractionType, enableVoice, isVoiceEnabled, voiceStatus]);
+
   // Trigger voice alert when distraction becomes visible
   useEffect(() => {
-    if (isVisible && enableVoice && isVoiceEnabled && !voiceResponseReceived) {
+    if (isVisible && enableVoice && isVoiceEnabled && !voiceResponseReceived && !voiceAlertTriggered) {
+      console.log('🎤 [ALERT] Triggering voice alert for distraction:', distractionType);
+      
       const triggerVoiceAlert = async () => {
-        const success = await handleVoiceDistractionAlert(distractionType);
-        if (success) {
-          setShowVoicePrompt(true);
+        setVoiceAlertTriggered(true);
+        
+        try {
+          const success = await handleVoiceDistractionAlert(distractionType);
+          console.log('🎤 [ALERT] Voice alert result:', success);
+          
+          if (success) {
+            setShowVoicePrompt(true);
+          } else {
+            console.log('🎤 [ALERT] Voice alert failed, showing manual controls only');
+          }
+        } catch (error) {
+          console.error('🎤 [ALERT] Voice alert error:', error);
         }
       };
 
       // Small delay to ensure UI is ready
       setTimeout(triggerVoiceAlert, 500);
     }
-  }, [isVisible, enableVoice, isVoiceEnabled, distractionType, handleVoiceDistractionAlert, voiceResponseReceived]);
+  }, [isVisible, enableVoice, isVoiceEnabled, distractionType, handleVoiceDistractionAlert, voiceResponseReceived, voiceAlertTriggered]);
 
   const getDistractionMessage = () => {
     switch (distractionType) {
       case 'tab_switch':
-        return "我注意到你切换了标签页。海风变向了！";
+        return "I noticed you switched away from your focus area. The winds have shifted!";
       case 'camera_absence':
       case 'camera_distraction':
-        return "AI注意到你不在工作区域。是时候回到航行中了！";
+        return "The AI noticed you're not at your workstation. Time to return to your voyage!";
       case 'blacklisted_content':
-        return "你已经驶入了令人分心的水域。让我们导航回到你的目的地！";
+        return "You've sailed into distracting waters. Let's navigate back to your destination!";
       case 'irrelevant_content':
-        return "当前内容似乎与你的航行目标无关。要返回航道吗？";
+        return "The current content doesn't seem related to your voyage goal. Shall we return to course?";
       case 'idle':
-        return "你似乎在休息。大海平静而宁和。";
+        return "You seem to be taking a break. The sea is calm and peaceful.";
       default:
-        return "船长似乎偏离了航道！";
+        return "The captain seems to be off course!";
     }
   };
 
@@ -95,12 +125,14 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
   };
 
   const handleResponse = (response: 'return_to_course' | 'exploring') => {
+    console.log('🚨 [ALERT] Manual response selected:', response);
     setSelectedResponse(response);
     setTimeout(() => {
       onResponse(response);
       setSelectedResponse(null);
       setVoiceResponseReceived(false);
       setShowVoicePrompt(false);
+      setVoiceAlertTriggered(false);
     }, 500);
   };
 
@@ -136,7 +168,7 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
               </motion.div>
 
               <h2 className="text-2xl font-bold mb-4 text-gray-800">
-                需要调整航向
+                Course Correction Needed
               </h2>
               
               <p className="text-gray-600 mb-2">
@@ -145,7 +177,7 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
               
               {duration && (
                 <p className="text-sm text-gray-500 mb-6">
-                  离开了 {Math.round(duration / 1000)} 秒
+                  Away for {Math.round(duration / 1000)} seconds
                 </p>
               )}
 
@@ -165,7 +197,7 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
                       >
                         <Volume2 className="w-5 h-5 text-blue-600" />
                       </motion.div>
-                      <span className="text-blue-800 text-sm">AI正在说话...</span>
+                      <span className="text-blue-800 text-sm">AI is speaking...</span>
                     </div>
                   </motion.div>
                 )}
@@ -184,11 +216,25 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
                       >
                         <Mic className="w-5 h-5 text-green-600" />
                       </motion.div>
-                      <span className="text-green-800 text-sm font-medium">正在聆听你的回应...</span>
+                      <span className="text-green-800 text-sm font-medium">Listening for your response...</span>
                     </div>
                     <p className="text-xs text-green-600">
-                      说出 "I'm exploring" 或 "return to course"
+                      Say "I'm exploring" or "return to course"
                     </p>
+                  </motion.div>
+                )}
+
+                {enableVoice && !isVoiceEnabled && voiceStatus.features.speechRecognition && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200"
+                  >
+                    <div className="flex items-center justify-center space-x-2">
+                      <Volume2 className="w-5 h-5 text-yellow-600" />
+                      <span className="text-yellow-800 text-sm">Voice recognition available, but AI voice needs API key</span>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -204,9 +250,9 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
                   }`}
                   size="lg"
                   icon={ArrowLeft}
-                  disabled={selectedResponse !== null || isSpeaking}
+                  disabled={selectedResponse !== null}
                 >
-                  返回航道
+                  Return to Course
                 </Button>
                 
                 <Button
@@ -219,29 +265,47 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
                   }`}
                   size="lg"
                   icon={Compass}
-                  disabled={selectedResponse !== null || isSpeaking}
+                  disabled={selectedResponse !== null}
                 >
-                  我在探索
+                  I'm Exploring
                 </Button>
               </div>
 
               <div className="mt-4 space-y-2">
                 <p className="text-xs text-gray-500">
-                  选择"我在探索"将暂时暂停分心检测
+                  Choose "I'm Exploring" to temporarily pause distraction detection
                 </p>
                 
                 {isVoiceEnabled && (
                   <p className="text-xs text-blue-600">
-                    🎤 你也可以用英语语音回应
+                    🎤 You can also respond with voice in English
                   </p>
                 )}
                 
                 {!isVoiceEnabled && voiceStatus.features.speechRecognition && (
                   <p className="text-xs text-yellow-600">
-                    💡 添加 ElevenLabs API 密钥以启用AI语音
+                    💡 Add ElevenLabs API key to enable AI voice responses
+                  </p>
+                )}
+
+                {!voiceStatus.features.speechRecognition && (
+                  <p className="text-xs text-red-600">
+                    ❌ Voice features not supported in this browser
                   </p>
                 )}
               </div>
+
+              {/* Debug info in development */}
+              {import.meta.env.DEV && (
+                <div className="mt-4 p-2 bg-gray-100 rounded text-xs text-left">
+                  <p><strong>Debug Info:</strong></p>
+                  <p>Voice Enabled: {isVoiceEnabled ? '✅' : '❌'}</p>
+                  <p>Speech Recognition: {voiceStatus.features.speechRecognition ? '✅' : '❌'}</p>
+                  <p>ElevenLabs: {voiceStatus.features.elevenLabs ? '✅' : '❌'}</p>
+                  <p>Alert Triggered: {voiceAlertTriggered ? '✅' : '❌'}</p>
+                  <p>Speaking: {isSpeaking ? '✅' : '❌'}</p>
+                </div>
+              )}
             </Card>
           </motion.div>
         </motion.div>

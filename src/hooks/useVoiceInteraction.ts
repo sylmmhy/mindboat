@@ -36,19 +36,35 @@ export const useVoiceInteraction = ({
       if (initializationAttempted.current) return;
       initializationAttempted.current = true;
 
+      console.log('🎤 [VOICE] Initializing voice service...');
+
       try {
         const initialized = await VoiceService.initialize();
-        setIsVoiceEnabled(initialized);
-        setVoiceStatus(VoiceService.getStatus());
+        const status = VoiceService.getStatus();
+        
+        console.log('🎤 [VOICE] Initialization result:', {
+          initialized,
+          status,
+          speechRecognition: status.features.speechRecognition,
+          elevenLabs: status.features.elevenLabs,
+          fullFeatures: status.features.fullFeatures
+        });
 
-        if (initialized && voiceStatus.features.fullFeatures) {
-          showSuccess('语音助手已就绪', 'AI语音功能');
-        } else if (voiceStatus.features.speechRecognition) {
-          showSuccess('语音识别已就绪', '部分语音功能');
+        setIsVoiceEnabled(initialized && status.features.speechRecognition);
+        setVoiceStatus(status);
+
+        if (initialized && status.features.fullFeatures) {
+          showSuccess('Voice assistant ready with full features', 'AI Voice');
+          console.log('🎤 [VOICE] ✅ Full voice features available');
+        } else if (status.features.speechRecognition) {
+          showSuccess('Voice recognition ready (AI voice needs API key)', 'Voice Features');
+          console.log('🎤 [VOICE] ⚠️ Speech recognition only - ElevenLabs API key needed for AI voice');
+        } else {
+          console.log('🎤 [VOICE] ❌ Voice features not available');
         }
       } catch (error) {
-        console.error('Voice initialization failed:', error);
-        showError('语音功能初始化失败', '语音助手');
+        console.error('🎤 [VOICE] Initialization failed:', error);
+        showError('Voice feature initialization failed', 'Voice Assistant');
       }
     };
 
@@ -59,23 +75,36 @@ export const useVoiceInteraction = ({
 
   // Handle distraction alert with voice
   const handleVoiceDistractionAlert = useCallback(async (distractionType: string) => {
-    if (!isVoiceEnabled || !onDistractionResponse) return false;
+    console.log('🎤 [VOICE] Distraction alert triggered:', {
+      distractionType,
+      isVoiceEnabled,
+      hasCallback: !!onDistractionResponse,
+      voiceStatus: voiceStatus.features
+    });
+
+    if (!isVoiceEnabled || !onDistractionResponse) {
+      console.log('🎤 [VOICE] Voice alert skipped - not enabled or no callback');
+      return false;
+    }
 
     try {
       setIsSpeaking(true);
+      console.log('🎤 [VOICE] Starting voice distraction alert...');
       
       await VoiceService.handleDistractionAlert(distractionType, (response) => {
+        console.log('🎤 [VOICE] Voice response received:', response);
         onDistractionResponse(response);
         setIsSpeaking(false);
       });
 
+      console.log('🎤 [VOICE] ✅ Voice alert initiated successfully');
       return true;
     } catch (error) {
-      console.error('Voice distraction alert failed:', error);
+      console.error('🎤 [VOICE] Voice distraction alert failed:', error);
       setIsSpeaking(false);
       return false;
     }
-  }, [isVoiceEnabled, onDistractionResponse]);
+  }, [isVoiceEnabled, onDistractionResponse, voiceStatus]);
 
   // Capture voice inspiration
   const captureVoiceInspiration = useCallback(async () => {
@@ -83,18 +112,22 @@ export const useVoiceInteraction = ({
 
     try {
       setIsListening(true);
+      console.log('🎤 [VOICE] Starting voice inspiration capture...');
+      
       const inspiration = await VoiceService.captureVoiceInspiration();
       
       if (inspiration) {
         onInspirationCaptured(inspiration, 'voice');
-        showSuccess('语音灵感已记录', '航海日志');
+        showSuccess('Voice inspiration recorded', 'Sailing Log');
+        console.log('🎤 [VOICE] ✅ Voice inspiration captured:', inspiration);
         return inspiration;
       }
       
+      console.log('🎤 [VOICE] No inspiration captured');
       return null;
     } catch (error) {
-      console.error('Voice inspiration capture failed:', error);
-      showError('语音录制失败，请重试', '录音错误');
+      console.error('🎤 [VOICE] Voice inspiration capture failed:', error);
+      showError('Voice recording failed, please try again', 'Recording Error');
       return null;
     } finally {
       setIsListening(false);
@@ -107,9 +140,11 @@ export const useVoiceInteraction = ({
 
     try {
       setIsSpeaking(true);
+      console.log('🎤 [VOICE] Announcing voyage completion...');
       await VoiceService.announceVoyageCompletion(destinationName, duration);
+      console.log('🎤 [VOICE] ✅ Voyage completion announced');
     } catch (error) {
-      console.error('Voyage completion announcement failed:', error);
+      console.error('🎤 [VOICE] Voyage completion announcement failed:', error);
     } finally {
       setIsSpeaking(false);
     }
@@ -120,6 +155,7 @@ export const useVoiceInteraction = ({
     VoiceService.stopListening();
     setIsListening(false);
     setIsSpeaking(false);
+    console.log('🎤 [VOICE] All voice activities stopped');
   }, []);
 
   // Update voice status periodically
@@ -127,7 +163,11 @@ export const useVoiceInteraction = ({
     if (!isVoyageActive) return;
 
     const interval = setInterval(() => {
-      setVoiceStatus(VoiceService.getStatus());
+      const newStatus = VoiceService.getStatus();
+      setVoiceStatus(newStatus);
+      
+      // Update voice enabled state based on current status
+      setIsVoiceEnabled(newStatus.initialized && newStatus.features.speechRecognition);
     }, 2000);
 
     return () => clearInterval(interval);
@@ -139,6 +179,18 @@ export const useVoiceInteraction = ({
       stopVoiceActivities();
     }
   }, [isVoyageActive, stopVoiceActivities]);
+
+  // Debug logging for voice state changes
+  useEffect(() => {
+    console.log('🎤 [VOICE] State update:', {
+      isVoiceEnabled,
+      isListening,
+      isSpeaking,
+      isVoyageActive,
+      isExploring,
+      features: voiceStatus.features
+    });
+  }, [isVoiceEnabled, isListening, isSpeaking, isVoyageActive, isExploring, voiceStatus]);
 
   return {
     isVoiceEnabled,

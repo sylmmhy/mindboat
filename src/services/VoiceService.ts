@@ -43,8 +43,11 @@ export class VoiceService {
    */
   static async initialize(): Promise<boolean> {
     try {
+      console.log('🎤 [VOICE SERVICE] Starting initialization...');
+      
       // Initialize ElevenLabs service
       const elevenLabsInitialized = ElevenLabsService.initialize();
+      console.log('🎤 [VOICE SERVICE] ElevenLabs initialized:', elevenLabsInitialized);
       
       // Initialize Speech Recognition
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -54,17 +57,27 @@ export class VoiceService {
         this.recognition.interimResults = this.config.interimResults;
         this.recognition.lang = this.config.language;
         this.recognition.maxAlternatives = this.config.maxAlternatives;
+        
+        console.log('🎤 [VOICE SERVICE] Speech Recognition configured:', {
+          continuous: this.config.continuous,
+          interimResults: this.config.interimResults,
+          language: this.config.language
+        });
+      } else {
+        console.warn('🎤 [VOICE SERVICE] Speech Recognition not supported in this browser');
       }
 
-      this.isInitialized = !!(this.recognition && elevenLabsInitialized);
+      this.isInitialized = !!this.recognition;
       
-      if (!this.isInitialized) {
-        console.warn('Voice service partially initialized. Some features may not be available.');
-      }
+      console.log('🎤 [VOICE SERVICE] Initialization complete:', {
+        speechRecognition: !!this.recognition,
+        elevenLabs: elevenLabsInitialized,
+        isInitialized: this.isInitialized
+      });
 
       return this.isInitialized;
     } catch (error) {
-      console.error('Failed to initialize voice service:', error);
+      console.error('🎤 [VOICE SERVICE] Failed to initialize:', error);
       return false;
     }
   }
@@ -102,10 +115,12 @@ export class VoiceService {
         return;
       }
 
+      console.log(`🎤 [VOICE SERVICE] Starting to listen (timeout: ${timeoutMs}ms)...`);
       this.isListening = true;
       let finalResult: SpeechRecognitionResult | null = null;
 
       const timeout = setTimeout(() => {
+        console.log('🎤 [VOICE SERVICE] Listen timeout reached');
         this.recognition.stop();
         this.isListening = false;
         if (!finalResult) {
@@ -119,6 +134,12 @@ export class VoiceService {
         const confidence = result[0].confidence || 0.5;
         const isFinal = result.isFinal;
 
+        console.log('🎤 [VOICE SERVICE] Speech result:', {
+          transcript,
+          confidence,
+          isFinal
+        });
+
         const speechResult: SpeechRecognitionResult = {
           transcript: transcript.trim(),
           confidence,
@@ -129,17 +150,20 @@ export class VoiceService {
           finalResult = speechResult;
           clearTimeout(timeout);
           this.isListening = false;
+          console.log('🎤 [VOICE SERVICE] ✅ Final speech result:', speechResult);
           resolve(speechResult);
         }
       };
 
       this.recognition.onerror = (event: any) => {
+        console.error('🎤 [VOICE SERVICE] Speech recognition error:', event.error);
         clearTimeout(timeout);
         this.isListening = false;
         reject(new Error(`Speech recognition error: ${event.error}`));
       };
 
       this.recognition.onend = () => {
+        console.log('🎤 [VOICE SERVICE] Speech recognition ended');
         clearTimeout(timeout);
         this.isListening = false;
         if (!finalResult) {
@@ -149,7 +173,9 @@ export class VoiceService {
 
       try {
         this.recognition.start();
+        console.log('🎤 [VOICE SERVICE] Speech recognition started');
       } catch (error) {
+        console.error('🎤 [VOICE SERVICE] Failed to start speech recognition:', error);
         clearTimeout(timeout);
         this.isListening = false;
         reject(error);
@@ -162,6 +188,7 @@ export class VoiceService {
    */
   static stopListening(): void {
     if (this.recognition && this.isListening) {
+      console.log('🎤 [VOICE SERVICE] Stopping speech recognition');
       this.recognition.stop();
       this.isListening = false;
     }
@@ -172,6 +199,7 @@ export class VoiceService {
    */
   static analyzeDistractionResponse(transcript: string): VoiceInteractionResponse {
     const text = transcript.toLowerCase().trim();
+    console.log('🎤 [VOICE SERVICE] Analyzing transcript:', text);
     
     // English phrases for "I'm exploring"
     const exploringPhrases = [
@@ -190,6 +218,7 @@ export class VoiceService {
     // Check for exploring intent
     for (const phrase of exploringPhrases) {
       if (text.includes(phrase)) {
+        console.log('🎤 [VOICE SERVICE] ✅ Detected exploring intent with phrase:', phrase);
         return {
           type: 'exploring',
           content: transcript,
@@ -201,6 +230,7 @@ export class VoiceService {
     // Check for return intent
     for (const phrase of returnPhrases) {
       if (text.includes(phrase)) {
+        console.log('🎤 [VOICE SERVICE] ✅ Detected return intent with phrase:', phrase);
         return {
           type: 'return_to_course',
           content: transcript,
@@ -217,6 +247,7 @@ export class VoiceService {
 
     for (const keyword of inspirationKeywords) {
       if (text.includes(keyword)) {
+        console.log('🎤 [VOICE SERVICE] ✅ Detected inspiration intent with keyword:', keyword);
         return {
           type: 'inspiration',
           content: transcript,
@@ -225,8 +256,9 @@ export class VoiceService {
       }
     }
 
+    console.log('🎤 [VOICE SERVICE] ⚠️ Unknown intent, defaulting to return_to_course');
     return {
-      type: 'unknown',
+      type: 'return_to_course', // Default to return to course for safety
       content: transcript,
       confidence: 0.5
     };
@@ -240,34 +272,54 @@ export class VoiceService {
     onResponse: (response: 'return_to_course' | 'exploring') => void
   ): Promise<void> {
     try {
-      // Speak the distraction alert
-      await ElevenLabsService.speakDistractionAlert(distractionType);
+      console.log('🎤 [VOICE SERVICE] Starting distraction alert for type:', distractionType);
+      
+      // Check if ElevenLabs is available for AI voice
+      if (ElevenLabsService.isConfigured()) {
+        console.log('🎤 [VOICE SERVICE] Speaking distraction alert...');
+        await ElevenLabsService.speakDistractionAlert(distractionType);
+        console.log('🎤 [VOICE SERVICE] ✅ Distraction alert spoken');
+      } else {
+        console.log('🎤 [VOICE SERVICE] ⚠️ ElevenLabs not configured, skipping AI voice');
+      }
       
       // Wait a moment, then start listening for response
       setTimeout(async () => {
         try {
+          console.log('🎤 [VOICE SERVICE] Starting to listen for user response...');
           const result = await this.listen(15000); // 15 second timeout
           const analysis = this.analyzeDistractionResponse(result.transcript);
           
+          console.log('🎤 [VOICE SERVICE] Voice analysis result:', analysis);
+          
           if (analysis.type === 'exploring') {
-            await ElevenLabsService.speakExplorationConfirmation();
+            if (ElevenLabsService.isConfigured()) {
+              await ElevenLabsService.speakExplorationConfirmation();
+            }
+            console.log('🎤 [VOICE SERVICE] ✅ User chose exploring mode');
             onResponse('exploring');
           } else if (analysis.type === 'return_to_course') {
-            await ElevenLabsService.speakReturnConfirmation();
+            if (ElevenLabsService.isConfigured()) {
+              await ElevenLabsService.speakReturnConfirmation();
+            }
+            console.log('🎤 [VOICE SERVICE] ✅ User chose return to course');
             onResponse('return_to_course');
           } else {
             // If unclear, default to return to course
-            await ElevenLabsService.speakReturnConfirmation();
+            if (ElevenLabsService.isConfigured()) {
+              await ElevenLabsService.speakReturnConfirmation();
+            }
+            console.log('🎤 [VOICE SERVICE] ⚠️ Unclear response, defaulting to return to course');
             onResponse('return_to_course');
           }
         } catch (error) {
-          console.warn('Voice response not detected, defaulting to return to course');
+          console.warn('🎤 [VOICE SERVICE] Voice response not detected, defaulting to return to course:', error);
           onResponse('return_to_course');
         }
       }, 1000);
       
     } catch (error) {
-      console.error('Failed to handle distraction alert:', error);
+      console.error('🎤 [VOICE SERVICE] Failed to handle distraction alert:', error);
       // Fallback to non-voice interaction
       onResponse('return_to_course');
     }
@@ -278,16 +330,21 @@ export class VoiceService {
    */
   static async captureVoiceInspiration(): Promise<string | null> {
     try {
+      console.log('🎤 [VOICE SERVICE] Starting voice inspiration capture...');
       const result = await this.listen(30000); // 30 second timeout for inspiration
       
       if (result.transcript && result.transcript.length > 5) {
-        await ElevenLabsService.speakInspirationConfirmation('voice');
+        if (ElevenLabsService.isConfigured()) {
+          await ElevenLabsService.speakInspirationConfirmation('voice');
+        }
+        console.log('🎤 [VOICE SERVICE] ✅ Voice inspiration captured:', result.transcript);
         return result.transcript;
       }
       
+      console.log('🎤 [VOICE SERVICE] ⚠️ No meaningful inspiration captured');
       return null;
     } catch (error) {
-      console.error('Failed to capture voice inspiration:', error);
+      console.error('🎤 [VOICE SERVICE] Failed to capture voice inspiration:', error);
       return null;
     }
   }
@@ -297,9 +354,15 @@ export class VoiceService {
    */
   static async announceVoyageCompletion(destinationName: string, duration: string): Promise<void> {
     try {
-      await ElevenLabsService.speakVoyageCompletion(destinationName, duration);
+      console.log('🎤 [VOICE SERVICE] Announcing voyage completion...');
+      if (ElevenLabsService.isConfigured()) {
+        await ElevenLabsService.speakVoyageCompletion(destinationName, duration);
+        console.log('🎤 [VOICE SERVICE] ✅ Voyage completion announced');
+      } else {
+        console.log('🎤 [VOICE SERVICE] ⚠️ ElevenLabs not configured, skipping announcement');
+      }
     } catch (error) {
-      console.error('Failed to announce voyage completion:', error);
+      console.error('🎤 [VOICE SERVICE] Failed to announce voyage completion:', error);
     }
   }
 
