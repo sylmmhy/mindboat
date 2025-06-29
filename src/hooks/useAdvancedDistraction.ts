@@ -212,6 +212,7 @@ export const useAdvancedDistraction = ({
       debugLog('COMBINED', 'Analysis completed', { 
         contentRelevant: analysis.contentRelevant,
         cameraAnalysis: analysis.cameraAnalysis,
+        screenAnalysis: analysis.screenAnalysis,
         distractionLevel: analysis.distractionLevel
       });
 
@@ -220,7 +221,8 @@ export const useAdvancedDistraction = ({
       // Check both content relevance AND camera presence/focus
       const contentIrrelevant = !analysis.contentRelevant && analysis.distractionLevel !== 'none';
       const cameraIssues = !analysis.cameraAnalysis.personPresent || !analysis.cameraAnalysis.appearsFocused;
-      const hasDistraction = contentIrrelevant || cameraIssues;
+      const screenIssues = !analysis.screenAnalysis.isProductiveContent;
+      const hasDistraction = contentIrrelevant || cameraIssues || screenIssues;
 
       if (hasDistraction) {
         setCombinedState(prev => {
@@ -228,7 +230,10 @@ export const useAdvancedDistraction = ({
             debugLog('COMBINED', 'Started tracking distraction', { 
               contentIrrelevant, 
               cameraIssues,
-              cameraAnalysis: analysis.cameraAnalysis 
+              screenIssues,
+              cameraAnalysis: analysis.cameraAnalysis,
+              screenAnalysis: analysis.screenAnalysis,
+              distractionLevel: analysis.distractionLevel
             });
             return {
               ...prev,
