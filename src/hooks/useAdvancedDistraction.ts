@@ -59,6 +59,7 @@ const ENHANCED_DISTRACTION_MAPPING = {
   'reuters.com': 'news_browsing',
   'nytimes.com': 'news_browsing',
 };
+
 // Tab switching detection state
 interface TabSwitchDetectionState {
   isDistracted: boolean;
@@ -182,7 +183,7 @@ export const useAdvancedDistraction = ({
       distractionTimeoutRef.current = setTimeout(() => {
         setTabSwitchState(prev => {
           if (prev.isTabHidden && !prev.isDistracted) {
-            debugLog('TAB_SWITCH', 'Distraction triggered - user away for 5+ seconds');
+            debugLog('TAB_SWITCH', '🚨 DISTRACTION TRIGGERED - user away for 5+ seconds');
             
             // Record distraction
             setTimeout(() => {
@@ -444,7 +445,6 @@ export const useAdvancedDistraction = ({
             if (!prev.isDistracted) {
               const distractionDuration = currentTime - prev.lastCheck;
               debugLog('COMBINED', 'Distraction detected via combined analysis', { 
-                    type: specificDistractionType,
                 contentIrrelevant: isContentIrrelevant,
                 cameraIssues,
                 cameraAnalysis: analysis.cameraAnalysis
@@ -454,8 +454,7 @@ export const useAdvancedDistraction = ({
               setTimeout(() => {
                 recordDistraction({
                   type: cameraIssues ? 'camera_distraction' : 'tab_switch',
-                  cameraAnalysis: analysis.cameraAnalysis,
-                  specificType: specificDistractionType
+                  timestamp: currentTime,
                 });
               }, 0);
 
@@ -671,9 +670,22 @@ export const useAdvancedDistraction = ({
     return 'tab_switch';
   };
 
-  // Combined distraction state
+  // Combined distraction state - THIS IS THE KEY FIX
   const isDistracted = tabSwitchState.isDistracted || combinedState.isDistracted || urlState.isDistracted;
   const distractionType = getDominantDistractionType();
+
+  // 🔧 DEBUG: Log distraction state changes
+  useEffect(() => {
+    debugLog('DISTRACTION_STATE', '🚨 Distraction state changed', {
+      isDistracted,
+      distractionType,
+      tabSwitch: tabSwitchState.isDistracted,
+      combined: combinedState.isDistracted,
+      url: urlState.isDistracted,
+      isExploring,
+      timestamp: new Date().toISOString()
+    });
+  }, [isDistracted, distractionType, tabSwitchState.isDistracted, combinedState.isDistracted, urlState.isDistracted, isExploring, debugLog]);
 
   // Diagnostics for debugging
   const diagnostics = {
