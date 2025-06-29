@@ -296,12 +296,6 @@ export const useAdvancedDistraction = ({
     const shouldMonitor = isVoyageActive && !isExploringRef.current;
     if (!shouldMonitor) return;
     
-    debugLog('ACTIVITY', 'User activity detected', {
-      type: 'mouse/keyboard',
-      currentUrl: window.location.href,
-      tabVisible: !document.hidden
-    });
-    
     lastActivityTime.current = Date.now();
     
     // Check URL on activity to catch any navigation
