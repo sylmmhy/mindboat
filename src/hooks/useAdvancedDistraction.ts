@@ -361,7 +361,8 @@ export const useAdvancedDistraction = ({
         
         // Check if distraction detected
         const isContentIrrelevant = !analysis.contentRelevant;
-        const cameraIssues = cameraFrame && (!analysis.userPresent || !analysis.userFocused);
+        const cameraIssues = cameraStream && analysis.cameraAnalysis && 
+          (!analysis.cameraAnalysis.personPresent || !analysis.cameraAnalysis.appearsFocused);
         
         if (isContentIrrelevant || cameraIssues) {
           setCombinedState(prev => {
@@ -370,7 +371,8 @@ export const useAdvancedDistraction = ({
               debugLog('COMBINED', 'Distraction detected via combined analysis', { 
                 distractionDuration,
                 contentIrrelevant: isContentIrrelevant,
-                cameraIssues
+                cameraIssues,
+                cameraAnalysis: analysis.cameraAnalysis
               });
 
               // Record distraction
