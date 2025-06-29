@@ -397,7 +397,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             exit={{ opacity: 0, y: -20 }}
             className="absolute top-16 right-4 z-20"
           >
-            <Card className="p-6 w-80">
+            <Card className="p-6 w-80 max-h-96 overflow-y-auto">
               <h3 className="font-semibold mb-4">Sailing Controls</h3>
 
               <div className="space-y-6">
@@ -477,6 +477,14 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                             {diagnostics.combined.lastCameraAnalysis.appearsFocused ? ' ✅ Focused' : ' ❌ Distracted'}</p>
                           </div>
                         )}
+                         {diagnostics.url?.currentUrl && (
+                           <div className="mt-2 text-xs text-gray-600">
+                             <p>🔗 Current URL: {diagnostics.url.currentUrl.length > 50 ? 
+                               diagnostics.url.currentUrl.substring(0, 50) + '...' : 
+                               diagnostics.url.currentUrl}</p>
+                             <p>URL Status: {diagnostics.url?.isDistracted ? '🚨 Distracting' : '✅ Relevant'}</p>
+                           </div>
+                         )}
                       </div>
                     </div>
                     <div className="mt-2 pt-2 border-t text-xs text-gray-400">
@@ -492,7 +500,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                 {inspirationNotes.length > 0 && (
                   <div className="border-t pt-4">
                     <p className="text-sm font-medium mb-2">Recent Notes:</p>
-                    <div className="max-h-20 overflow-y-auto text-xs text-gray-600 space-y-1">
+                    <div className="max-h-16 overflow-y-auto text-xs text-gray-600 space-y-1">
                       {inspirationNotes.slice(-3).map((note, index) => (
                         <div key={index} className="p-2 bg-gray-50 rounded">
                           {note.type === 'voice' ? '🎤' : '📝'} {note.content.slice(0, 40)}...
@@ -502,15 +510,17 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                   </div>
                 )}
 
-                <Button
-                  onClick={handleEndVoyage}
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  icon={ArrowLeft}
-                >
-                  End Voyage
-                </Button>
+                <div className="border-t pt-4">
+                  <Button
+                    onClick={handleEndVoyage}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    icon={ArrowLeft}
+                  >
+                    End Voyage
+                  </Button>
+                </div>
               </div>
             </Card>
           </motion.div>

@@ -141,6 +141,36 @@ export const useAdvancedDistraction = ({
    * Check if URL is relevant to current task
    */
   const isUrlRelevantToTask = useCallback((url: string): boolean => {
+    // Always consider the current app's domain as relevant
+    const currentAppDomain = window.location.hostname;
+    const urlObj = new URL(url);
+    
+    if (urlObj.hostname === currentAppDomain) {
+      debugLog('URL', '✅ URL is on same domain as app - always relevant', { 
+        url, 
+        appDomain: currentAppDomain 
+      });
+      return true;
+    }
+    
+    // Also whitelist common development domains
+    const devDomains = [
+      'localhost',
+      '127.0.0.1',
+      'local-credentialless.webcontainer-api.io', // WebContainer domains
+      'webcontainer.io',
+      'stackblitz.io',
+      'bolt.new'
+    ];
+    
+    if (devDomains.some(domain => urlObj.hostname.includes(domain))) {
+      debugLog('URL', '✅ URL is on development domain - always relevant', { 
+        url, 
+        hostname: urlObj.hostname 
+      });
+      return true;
+    }
+    
     if (!currentDestinationRef.current?.related_apps) {
       return true; // If no related apps specified, assume relevant
     }
