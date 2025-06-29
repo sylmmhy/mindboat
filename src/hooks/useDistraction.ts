@@ -116,7 +116,7 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
         'terminal': [], // Desktop app, no URL equivalent
         'calendar': ['calendar.google.com', 'outlook.com'],
         'timer': ['focus-timer', 'pomodoro'], // Generic timer apps
-        'music': ['spotify.com', 'apple.com/music', 'youtube.com/music'] // Background music might be acceptable
+        'music': ['spotify.com', 'apple.com/music', 'youtube.com/music', 'y.qq.com'] // Background music might be acceptable
       };
       
       if (appMappings[app]) {
