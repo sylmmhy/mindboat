@@ -4,6 +4,9 @@ import { Compass, Mic, Camera, FileText, ArrowLeft, Save, X } from 'lucide-react
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
+import { supabase } from '../../lib/supabase';
+import { useVoyageStore } from '../../stores/voyageStore';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 interface ExplorationModeProps {
   isActive: boolean;
@@ -20,22 +23,95 @@ export const ExplorationMode: React.FC<ExplorationModeProps> = ({
   const [captureType, setCaptureType] = useState<'text' | 'voice'>('text');
   const [textNote, setTextNote] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleCaptureInspiration = () => {
+  const { currentVoyage } = useVoyageStore();
+  const { showSuccess, showError } = useNotificationStore();
+
+  const handleCaptureInspiration = async () => {
     if (captureType === 'text' && textNote.trim()) {
-      onCaptureInspiration(textNote, 'text');
+      setIsSaving(true);
+      
+      try {
+        // Save to database if we have a current voyage
+        if (currentVoyage && !currentVoyage.id.startsWith('local-')) {
+          const { error } = await supabase
+            .from('exploration_notes')
+            .insert({
+              voyage_id: currentVoyage.id,
+              content: textNote.trim(),
+              type: 'text'
+            });
+
+          if (error) {
+            console.warn('Failed to save note to database:', error);
+            showError('Failed to save note to database, but keeping locally.', 'Save Warning');
+          } else {
+            showSuccess('Inspiration captured and saved!', 'Note Saved');
+          }
+        } else {
+          // Local voyage or no database connection
+          showSuccess('Inspiration captured locally!', 'Note Saved');
+        }
+        
+        // Also call the parent callback for local handling
+        onCaptureInspiration(textNote, 'text');
+      } catch (error) {
+        console.error('Error saving exploration note:', error);
+        showError('Failed to save note. Please try again.', 'Save Error');
+        // Still call parent callback as fallback
+        onCaptureInspiration(textNote, 'text');
+      } finally {
+        setIsSaving(false);
+      }
+      
       setTextNote('');
       setShowCapturePanel(false);
     }
   };
 
-  const handleVoiceCapture = () => {
+  const handleVoiceCapture = async () => {
     if (!isRecording) {
       setIsRecording(true);
+      setIsSaving(true);
+      
       // In a real implementation, this would start voice recording
       setTimeout(() => {
         setIsRecording(false);
-        onCaptureInspiration('Voice note captured', 'voice');
+        
+        // Save voice note (for now, just a placeholder)
+        const saveVoiceNote = async () => {
+          try {
+            if (currentVoyage && !currentVoyage.id.startsWith('local-')) {
+              const { error } = await supabase
+                .from('exploration_notes')
+                .insert({
+                  voyage_id: currentVoyage.id,
+                  content: 'Voice note recorded during exploration',
+                  type: 'voice'
+                });
+
+              if (error) {
+                console.warn('Failed to save voice note to database:', error);
+                showError('Failed to save voice note to database.', 'Save Warning');
+              } else {
+                showSuccess('Voice note captured and saved!', 'Voice Note Saved');
+              }
+            } else {
+              showSuccess('Voice note captured locally!', 'Voice Note Saved');
+            }
+            
+            onCaptureInspiration('Voice note captured', 'voice');
+          } catch (error) {
+            console.error('Error saving voice note:', error);
+            showError('Failed to save voice note.', 'Save Error');
+            onCaptureInspiration('Voice note captured', 'voice');
+          } finally {
+            setIsSaving(false);
+          }
+        };
+        
+        saveVoiceNote();
         setShowCapturePanel(false);
       }, 3000);
     }
@@ -144,7 +220,8 @@ export const ExplorationMode: React.FC<ExplorationModeProps> = ({
                   />
                   <Button
                     onClick={handleCaptureInspiration}
-                    disabled={!textNote.trim()}
+                    disabled={!textNote.trim() || isSaving}
+                    loading={isSaving}
                     className="w-full"
                     icon={Save}
                   >
@@ -162,7 +239,8 @@ export const ExplorationMode: React.FC<ExplorationModeProps> = ({
                       className={`w-20 h-20 rounded-full ${
                         isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-purple-600 hover:bg-purple-700'
                       }`}
-                      disabled={isRecording}
+                      disabled={isRecording || isSaving}
+                      loading={isSaving && !isRecording}
                     >
                       <Mic className="w-8 h-8" />
                     </Button>

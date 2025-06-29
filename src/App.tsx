@@ -13,6 +13,7 @@ import { useDestinationStore } from './stores/destinationStore';
 import { useVoyageStore } from './stores/voyageStore';
 import { useNotificationStore } from './stores/notificationStore';
 import type { Destination } from './types';
+import { setupDebugTool } from './utils/debugDistraction';
 
 type AppState = 'auth' | 'lighthouse' | 'destinations' | 'voyage-prep' | 'sailing' | 'voyage-complete' | 'map';
 
@@ -21,6 +22,7 @@ function App() {
     user, 
     lighthouseGoal, 
     initialize, 
+    debugDistractionFlow,
     isLoading, 
     isAuthenticated, 
     authMode,
@@ -33,7 +35,7 @@ function App() {
   
   const [appState, setAppState] = useState<AppState>('auth');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
-  const [completedVoyage, setCompletedVoyage] = useState<any>(null);
+  const [completedVoyageId, setCompletedVoyageId] = useState<string | null>(null);
   const [initializationComplete, setInitializationComplete] = useState(false);
 
   // Initialize the app
@@ -45,6 +47,13 @@ function App() {
     
     initApp();
   }, [initialize]);
+
+  // Debug
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      setupDebugTool();
+    }
+  }, [debugDistractionFlow]);
 
   // Handle state transitions after initialization
   useEffect(() => {
@@ -136,14 +145,14 @@ function App() {
     setAppState('voyage-prep');
   };
 
-  const handleStartVoyage = async (destination: Destination) => {
+  const handleStartVoyage = async (destination: Destination, plannedDuration: number) => {
     if (!user) return;
     
     setSelectedDestination(destination);
     
     try {
       // Start the voyage in the store
-      await startVoyage(destination.id, user.id, 25); // Default 25 minutes
+      await startVoyage(destination.id, user.id, plannedDuration);
       
       showSuccess(
         `Sailing to ${destination.destination_name}`,
@@ -164,9 +173,12 @@ function App() {
 
   const handleEndVoyage = async () => {
     if (currentVoyage && selectedDestination) {
+      // Capture distraction count before ending voyage (since endVoyage resets store state)
+      const { distractionCount } = useVoyageStore.getState();
+      
       try {
         // End the voyage in the store
-        await endVoyage();
+        const updatedVoyage = await endVoyage();
         
         showSuccess(
           'Your voyage has been completed successfully!',
@@ -174,10 +186,12 @@ function App() {
         );
         
         // Set completed voyage data for the completion screen
-        setCompletedVoyage({
-          ...currentVoyage,
-          destination: selectedDestination
-        });
+        if (updatedVoyage) {
+          setCompletedVoyageId(updatedVoyage.id);
+        } else {
+          // Fallback: use current voyage ID
+          setCompletedVoyageId(currentVoyage.id);
+        }
         
         // Transition to voyage complete screen
         setAppState('voyage-complete');
@@ -198,7 +212,7 @@ function App() {
 
   const handleBackToPrep = () => {
     setSelectedDestination(null);
-    setCompletedVoyage(null);
+    setCompletedVoyageId(null);
     setAppState('voyage-prep');
   };
 
@@ -239,10 +253,9 @@ function App() {
         />
       )}
       
-      {appState === 'voyage-complete' && completedVoyage && (
+      {appState === 'voyage-complete' && completedVoyageId && (
         <VoyageComplete
-          voyage={completedVoyage}
-          destination={completedVoyage.destination}
+          voyageId={completedVoyageId}
           onContinue={handleVoyageCompleteNext}
         />
       )}
