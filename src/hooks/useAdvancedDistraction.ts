@@ -1,13 +1,13 @@
 /**
- * Advanced Distraction Detection Hook - Combined Screenshot + Camera Analysis
+ * Advanced Distraction Detection Hook - Complete Detection System
  * 
- * This hook implements sophisticated distraction detection using:
- * 1. Combined screenshot + camera analysis every 60 seconds
- * 2. URL blacklist checking (independent)
- * 3. Tab switching detection (handled by useDistraction hook)
+ * This hook implements comprehensive distraction detection using:
+ * 1. Tab switching detection via Page Visibility API
+ * 2. Combined screenshot + camera analysis every 60 seconds
+ * 3. URL blacklist checking (independent)
+ * 4. Activity and idle monitoring
  * 
- * The screenshot analysis now includes camera view analysis in a single request.
- * Distraction is triggered when ANY detection method indicates distraction.
+ * All detection methods work together to provide comprehensive distraction monitoring.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -27,6 +27,12 @@ interface UseAdvancedDistractionProps {
   cameraStream?: MediaStream | null;
 }
 
+// Tab switching detection state
+interface TabSwitchDetectionState {
+  isDistracted: boolean;
+  startTime: number | null;
+  isTabHidden: boolean;
+}
 
 // Combined screenshot + camera detection state
 interface CombinedDetectionState {
@@ -52,6 +58,15 @@ export const useAdvancedDistraction = ({
   cameraStream 
 }: UseAdvancedDistractionProps = {}) => {
   
+  // Get voyage store functions
+  const { isVoyageActive, recordDistraction } = useVoyageStore();
+
+  // Tab switching detection state
+  const [tabSwitchState, setTabSwitchState] = useState<TabSwitchDetectionState>({
+    isDistracted: false,
+    startTime: null,
+    isTabHidden: false
+  });
 
   // Combined detection state (screenshot + camera in one analysis)
   const [combinedState, setCombinedState] = useState<CombinedDetectionState>({
@@ -75,195 +90,344 @@ export const useAdvancedDistraction = ({
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [lastAnalysisResults, setLastAnalysisResults] = useState<{
     combined?: any;
+    url?: any;
+    tabSwitch?: any;
   }>({});
 
-  // Refs for intervals
+  // Refs for intervals and timeouts
   const combinedCheckInterval = useRef<NodeJS.Timeout>();
   const urlCheckInterval = useRef<NodeJS.Timeout>();
-
-  // Store refs for current values to avoid stale closures
+  const distractionTimeoutRef = useRef<NodeJS.Timeout>();
+  
+  // Refs for state tracking
   const isExploringRef = useRef(isExploring);
-  const cameraStreamRef = useRef(cameraStream);
-  const currentDestinationRef = useRef(currentDestination);
+  const lastUrlRef = useRef(window.location.href);
+  const lastActivityTime = useRef<number>(Date.now());
+  const idleTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Update refs when state changes
+  // Update exploring ref when state changes
   useEffect(() => {
     isExploringRef.current = isExploring;
   }, [isExploring]);
 
-  useEffect(() => {
-    cameraStreamRef.current = cameraStream;
-  }, [cameraStream]);
-
-  useEffect(() => {
-    currentDestinationRef.current = currentDestination;
-  }, [currentDestination]);
-
-  // Use stable selectors to prevent re-renders
-  const isVoyageActive = useVoyageStore(state => state.isVoyageActive);
-  const recordDistraction = useVoyageStore(state => state.recordDistraction);
-
-  // Debug logging
-  const debugLog = useCallback((method: string, message: string, data?: any) => {
+  // Debug logging function
+  const debugLog = useCallback((category: string, message: string, data?: any) => {
     if (import.meta.env.DEV) {
-      console.log(`🎯 [${method}] ${message}`, data || '');
+      console.log(`[${category.toUpperCase()}] ${message}`, data || '');
     }
   }, []);
 
-  // Calculate combined distraction state
-  const isDistracted = combinedState.isDistracted || urlState.isDistracted;
-  const distractionType = 
-    combinedState.isDistracted ? 'camera_distraction' :
-    urlState.distractionType || 'tab_switch';
-  const confidenceLevel = Math.max(combinedState.confidenceLevel, 50);
-
-  /**
-   * Check if URL is in blacklist
-   */
-  const isUrlBlacklisted = useCallback((url: string): boolean => {
-    const lowerUrl = url.toLowerCase();
-    return DISTRACTION_BLACKLIST.some(blacklistedItem => 
-      lowerUrl.includes(blacklistedItem.toLowerCase())
-    );
-  }, []);
-
-  /**
-   * Check if URL is in productivity whitelist
-   */
-  const isUrlWhitelisted = useCallback((url: string): boolean => {
-    const lowerUrl = url.toLowerCase();
-    return PRODUCTIVITY_WHITELIST.some(whitelistedItem => 
-      lowerUrl.includes(whitelistedItem.toLowerCase())
-    );
-  }, []);
-
-  /**
-   * Check if URL is relevant to current task
-   */
-  const isUrlRelevantToTask = useCallback((url: string): boolean => {
-    // Always consider the current app's domain as relevant
-    const currentAppDomain = window.location.hostname;
-    const urlObj = new URL(url);
+  // Tab switching detection using Page Visibility API
+  const handleVisibilityChange = useCallback(() => {
+    const shouldMonitor = isVoyageActive && !isExploringRef.current;
+    if (!shouldMonitor) return;
     
-    if (urlObj.hostname === currentAppDomain) {
-      debugLog('URL', '✅ URL is on same domain as app - always relevant', { 
-        url, 
-        appDomain: currentAppDomain 
-      });
-      return true;
-    }
+    const isHidden = document.hidden;
     
-    // Also whitelist common development domains
-    const devDomains = [
-      'localhost',
-      '127.0.0.1',
-      'local-credentialless.webcontainer-api.io', // WebContainer domains
-      'webcontainer.io',
-      'stackblitz.io',
-      'bolt.new'
-    ];
+    debugLog('TAB_SWITCH', 'Visibility change detected', { 
+      hidden: isHidden,
+      documentVisibilityState: document.visibilityState,
+      timestamp: new Date().toISOString(),
+      voyageActive: isVoyageActive,
+      exploring: isExploringRef.current
+    });
     
-    if (devDomains.some(domain => urlObj.hostname.includes(domain))) {
-      debugLog('URL', '✅ URL is on development domain - always relevant', { 
-        url, 
-        hostname: urlObj.hostname 
-      });
-      return true;
-    }
-    
-    if (!currentDestinationRef.current?.related_apps) {
-      return true; // If no related apps specified, assume relevant
-    }
-
-    const lowerUrl = url.toLowerCase();
-    const relatedApps = currentDestinationRef.current.related_apps.map((app: string) => app.toLowerCase());
-
-    return relatedApps.some((app: string) => 
-      lowerUrl.includes(app) || lowerUrl.includes(app.replace(/\s+/g, ''))
-    );
-  }, []);
-
-  /**
-   * COMBINED: Analyze screenshot + camera for content relevance and user presence
-   */
-  const checkCombinedForDistraction = useCallback(async () => {
-    if (!GeminiService.isConfigured() || !ScreenshotService.isSupported()) {
-      debugLog('COMBINED', 'Skipping combined check - Gemini not configured or screenshots not supported');
-      return;
-    }
-
-    debugLog('COMBINED', 'Starting combined screenshot + camera analysis...');
-
-    try {
-      setCombinedState(prev => ({ ...prev, error: null }));
-
-      const userGoal = currentDestinationRef.current?.description || 'Focus on work';
-      const currentTask = currentDestinationRef.current?.destination_name || 'Current task';
-      const relatedApps = currentDestinationRef.current?.related_apps || [];
-
-      const { analysis } = await ScreenshotService.captureAndAnalyze(
-        userGoal,
-        currentTask, 
-        relatedApps,
-        cameraStreamRef.current || undefined
-      );
-
-      setLastAnalysisResults(prev => ({ ...prev, combined: analysis }));
-      debugLog('COMBINED', 'Analysis completed', { 
-        contentRelevant: analysis.contentRelevant,
-        cameraAnalysis: analysis.cameraAnalysis,
-        screenAnalysis: analysis.screenAnalysis,
-        distractionLevel: analysis.distractionLevel
-      });
-
-      const currentTime = Date.now();
+    if (isHidden) {
+      // Tab became hidden - user switched away
+      debugLog('TAB_SWITCH', 'User switched away from tab - starting timer');
+      const startTime = Date.now();
       
-      // Check both content relevance AND camera presence/focus
-      const contentIrrelevant = !analysis.contentRelevant && analysis.distractionLevel !== 'none';
-      const cameraIssues = !analysis.cameraAnalysis.personPresent || !analysis.cameraAnalysis.appearsFocused;
-      const screenIssues = !analysis.screenAnalysis.isProductiveContent;
-      const hasDistraction = contentIrrelevant || cameraIssues || screenIssues;
+      setTabSwitchState(prev => ({
+        ...prev,
+        startTime,
+        isTabHidden: true
+      }));
+      
+      // Set timeout for distraction detection (5 seconds)
+      distractionTimeoutRef.current = setTimeout(() => {
+        setTabSwitchState(prev => {
+          if (prev.isTabHidden && !prev.isDistracted) {
+            debugLog('TAB_SWITCH', 'Distraction triggered - user away for 5+ seconds');
+            
+            // Record distraction
+            setTimeout(() => {
+              recordDistraction({
+                type: 'tab_switch',
+                timestamp: startTime,
+              });
+            }, 0);
 
-      if (hasDistraction) {
-        setCombinedState(prev => {
-          if (!prev.startTime) {
-            debugLog('COMBINED', 'Started tracking distraction', { 
-              contentIrrelevant, 
-              cameraIssues,
-              screenIssues,
-              cameraAnalysis: analysis.cameraAnalysis,
-              screenAnalysis: analysis.screenAnalysis,
-              distractionLevel: analysis.distractionLevel
-            });
             return {
               ...prev,
-              startTime: currentTime,
-              lastCheck: currentTime,
-              confidenceLevel: analysis.confidenceLevel,
-              lastCameraAnalysis: analysis.cameraAnalysis,
-              lastScreenshotAnalysis: analysis
+              isDistracted: true
             };
-          } else {
-            // Check if distraction duration exceeds threshold
-            const distractionDuration = currentTime - prev.startTime;
+          }
+          return prev;
+        });
+      }, 5000);
+    } else {
+      // Tab became visible - user returned
+      debugLog('TAB_SWITCH', 'User returned to tab', {
+        hadTimeout: !!distractionTimeoutRef.current,
+        wasDistracted: tabSwitchState.isDistracted,
+        timeAway: tabSwitchState.startTime ? 
+          `${Math.round((Date.now() - tabSwitchState.startTime) / 1000)}s` : 'N/A'
+      });
+      
+      // Clear timeout if user returned quickly
+      if (distractionTimeoutRef.current) {
+        clearTimeout(distractionTimeoutRef.current);
+        debugLog('TAB_SWITCH', 'Cleared distraction timeout - user returned quickly');
+      }
+      
+      // Handle distraction completion
+      setTabSwitchState(prev => {
+        if (prev.startTime) {
+          const duration = Date.now() - prev.startTime;
+          
+          // Only record if distraction lasted more than 3 seconds
+          if (duration >= 3000) {
+            debugLog('TAB_SWITCH', 'Recording completed distraction', { 
+              duration: `${Math.round(duration / 1000)} seconds`,
+              wasTriggered: prev.isDistracted 
+            });
             
-            if (distractionDuration > DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD && !prev.isDistracted) {
-              debugLog('COMBINED', '🚨 Combined distraction triggered!', { 
-                distractionDuration, 
-                threshold: DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD 
+            // Record completion with duration
+            setTimeout(() => {
+              recordDistraction({
+                type: 'tab_switch',
+                timestamp: prev.startTime!,
+                duration,
+              });
+            }, 0);
+          }
+        }
+        
+        // Clear tab switch distraction state
+        return {
+          isDistracted: false,
+          startTime: null,
+          isTabHidden: false
+        };
+      });
+      
+      // Reset activity tracking
+      lastActivityTime.current = Date.now();
+      
+      // Check URL when returning to tab (in case user navigated while away)
+      setTimeout(() => {
+        debugLog('TAB_SWITCH', 'Performing URL check after tab return');
+        checkUrlChange();
+      }, 100);
+    }
+  }, [isVoyageActive, recordDistraction, debugLog, tabSwitchState.isDistracted, tabSwitchState.startTime]);
+
+  // URL checking for blacklisted/irrelevant content
+  const checkUrlChange = useCallback(() => {
+    if (!isVoyageActive || isExploringRef.current) return;
+
+    const currentUrl = window.location.href;
+    const previousUrl = lastUrlRef.current;
+    
+    if (currentUrl === previousUrl) return;
+    
+    debugLog('URL', 'URL changed detected', { from: previousUrl, to: currentUrl });
+    lastUrlRef.current = currentUrl;
+    
+    // Check against blacklist
+    const isBlacklisted = DISTRACTION_BLACKLIST.some(item => 
+      currentUrl.toLowerCase().includes(item.toLowerCase())
+    );
+    
+    // Check if task-related (simplified check)
+    const isTaskRelated = currentDestination?.related_apps?.some((app: string) => 
+      currentUrl.toLowerCase().includes(app.toLowerCase())
+    ) || false;
+    
+    if (isBlacklisted) {
+      debugLog('URL', 'Blacklisted site detected', { url: currentUrl });
+      setUrlState(prev => ({
+        ...prev,
+        isDistracted: true,
+        startTime: Date.now(),
+        currentUrl,
+        distractionType: 'blacklisted_content'
+      }));
+      
+      recordDistraction({
+        type: 'tab_switch',
+        timestamp: Date.now(),
+      });
+    } else if (!isTaskRelated && !isBlacklisted) {
+      // Check if it's an irrelevant site (not blacklisted but not related to task)
+      const isProductivitySite = PRODUCTIVITY_WHITELIST.some(item => 
+        currentUrl.toLowerCase().includes(item.toLowerCase())
+      );
+      
+      if (!isProductivitySite) {
+        debugLog('URL', 'Potentially irrelevant site detected', { url: currentUrl });
+        setUrlState(prev => ({
+          ...prev,
+          isDistracted: true,
+          startTime: Date.now(),
+          currentUrl,
+          distractionType: 'irrelevant_content'
+        }));
+        
+        recordDistraction({
+          type: 'tab_switch',
+          timestamp: Date.now(),
+        });
+      }
+    } else if (isTaskRelated && urlState.isDistracted) {
+      // User returned to task-related site
+      debugLog('URL', 'Clearing distraction due to return to task');
+      setUrlState(prev => ({
+        ...prev,
+        isDistracted: false,
+        startTime: null,
+        distractionType: null
+      }));
+    }
+  }, [isVoyageActive, currentDestination, urlState.isDistracted, recordDistraction, debugLog]);
+
+  // Activity monitoring
+  const handleActivity = useCallback(() => {
+    const shouldMonitor = isVoyageActive && !isExploringRef.current;
+    if (!shouldMonitor) return;
+    
+    debugLog('ACTIVITY', 'User activity detected', {
+      type: 'mouse/keyboard',
+      currentUrl: window.location.href,
+      tabVisible: !document.hidden
+    });
+    
+    lastActivityTime.current = Date.now();
+    
+    // Check URL on activity to catch any navigation
+    checkUrlChange();
+    
+    // Clear idle timeout if user becomes active
+    if (idleTimeoutRef.current) {
+      clearTimeout(idleTimeoutRef.current);
+    }
+    
+    // Set new idle timeout (90 seconds)
+    idleTimeoutRef.current = setTimeout(() => {
+      const timeSinceActivity = Date.now() - lastActivityTime.current;
+      if (timeSinceActivity >= 90000 && !combinedState.isDistracted && !tabSwitchState.isDistracted) {
+        debugLog('ACTIVITY', 'Idle distraction triggered after 90s of inactivity');
+        
+        // Set as combined distraction for simplicity
+        setCombinedState(prev => ({
+          ...prev,
+          isDistracted: true,
+          startTime: Date.now() - timeSinceActivity
+        }));
+        
+        recordDistraction({
+          type: 'idle',
+          timestamp: Date.now() - timeSinceActivity,
+        });
+      }
+    }, 90000);
+  }, [isVoyageActive, checkUrlChange, debugLog, combinedState.isDistracted, tabSwitchState.isDistracted]);
+
+  // Combined screenshot + camera analysis
+  const performCombinedAnalysis = useCallback(async () => {
+    if (!isVoyageActive || isExploringRef.current) return;
+
+    debugLog('COMBINED', 'Starting combined analysis');
+    
+    try {
+      // Take screenshot
+      const screenshot = await ScreenshotService.captureScreen();
+      if (!screenshot) {
+        debugLog('COMBINED', 'No screenshot captured');
+        return;
+      }
+
+      // Capture camera frame if available
+      let cameraFrame = null;
+      if (cameraStream) {
+        try {
+          // Create canvas to capture current camera frame
+          const video = document.createElement('video');
+          video.srcObject = cameraStream;
+          video.play();
+          
+          // Wait for video to load
+          await new Promise((resolve) => {
+            video.onloadedmetadata = resolve;
+          });
+          
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          ctx?.drawImage(video, 0, 0);
+          cameraFrame = canvas.toDataURL('image/jpeg', 0.8);
+        } catch (error) {
+          debugLog('COMBINED', 'Camera frame capture failed', error);
+        }
+      }
+
+      // Perform combined analysis
+      const analysisPrompt = `Analyze this workspace for distraction. 
+Task: ${currentDestination?.destination_name || 'Focus work'}
+Screenshot: ${screenshot}
+${cameraFrame ? `Camera: ${cameraFrame}` : 'No camera feed'}
+
+Respond with JSON:
+{
+  "contentRelevant": boolean,
+  "userPresent": boolean,
+  "userFocused": boolean,
+  "distractionLevel": "none" | "low" | "medium" | "high",
+  "confidenceLevel": number,
+  "cameraAnalysis": {
+    "userPresent": boolean,
+    "appearsFocused": boolean,
+    "lookingAtScreen": boolean
+  },
+  "screenAnalysis": {
+    "contentType": string,
+    "isProductiveContent": boolean,
+    "hasDistractions": boolean
+  }
+}`;
+
+      const analysis = await GeminiService.analyzeContent(analysisPrompt);
+      
+      if (analysis) {
+        const currentTime = Date.now();
+        
+        // Check if distraction detected
+        const isContentIrrelevant = !analysis.contentRelevant;
+        const cameraIssues = cameraFrame && (!analysis.userPresent || !analysis.userFocused);
+        
+        if (isContentIrrelevant || cameraIssues) {
+          setCombinedState(prev => {
+            if (!prev.isDistracted) {
+              const distractionDuration = currentTime - prev.lastCheck;
+              debugLog('COMBINED', 'Distraction detected via combined analysis', { 
+                distractionDuration,
+                contentIrrelevant: isContentIrrelevant,
+                cameraIssues
               });
 
               // Record distraction
               setTimeout(() => {
                 recordDistraction({
                   type: cameraIssues ? 'camera_distraction' : 'tab_switch',
-                  timestamp: prev.startTime,
+                  timestamp: currentTime,
                 });
               }, 0);
 
               return {
                 ...prev,
                 isDistracted: true,
+                startTime: currentTime,
                 confidenceLevel: analysis.confidenceLevel,
                 lastCameraAnalysis: analysis.cameraAnalysis,
                 lastScreenshotAnalysis: analysis
@@ -277,234 +441,55 @@ export const useAdvancedDistraction = ({
               lastCameraAnalysis: analysis.cameraAnalysis,
               lastScreenshotAnalysis: analysis
             };
-          }
-        });
-      } else {
-        // Both content and camera are good - clear distraction
-        setCombinedState(prev => {
-          if (prev.isDistracted || prev.startTime) {
-            debugLog('COMBINED', '✅ Combined distraction cleared - all good', { 
-              contentRelevant: analysis.contentRelevant,
-              cameraAnalysis: analysis.cameraAnalysis 
-            });
-          }
-          return {
-            ...prev,
-            isDistracted: false,
-            startTime: null,
-            lastCheck: currentTime,
-            confidenceLevel: analysis.confidenceLevel,
-            lastCameraAnalysis: analysis.cameraAnalysis,
-            lastScreenshotAnalysis: analysis
-          };
-        });
+          });
+        } else {
+          // Both content and camera are good - clear distraction
+          setCombinedState(prev => {
+            if (prev.isDistracted || prev.startTime) {
+              debugLog('COMBINED', 'Combined distraction cleared - all good', { 
+                contentRelevant: analysis.contentRelevant,
+                cameraAnalysis: analysis.cameraAnalysis 
+              });
+            }
+            return {
+              ...prev,
+              isDistracted: false,
+              startTime: null,
+              lastCheck: currentTime,
+              confidenceLevel: analysis.confidenceLevel,
+              lastCameraAnalysis: analysis.cameraAnalysis,
+              lastScreenshotAnalysis: analysis
+            };
+          });
+        }
       }
 
     } catch (error) {
-      debugLog('COMBINED', '❌ Combined analysis failed', { error: error instanceof Error ? error.message : error });
+      debugLog('COMBINED', 'Combined analysis failed', { error: error instanceof Error ? error.message : error });
       setCombinedState(prev => ({ 
         ...prev, 
-        error: error instanceof Error ? error.message : 'Combined analysis failed',
-        lastCheck: Date.now(),
-        lastCameraAnalysis: null,
-        lastScreenshotAnalysis: null
+        error: error instanceof Error ? error.message : 'Analysis failed' 
       }));
     }
-  }, [recordDistraction, debugLog]);
+  }, [isVoyageActive, cameraStream, currentDestination, recordDistraction, debugLog]);
 
-  /**
-   * Check URL for blacklisted content
-   */
-  const checkUrlForDistraction = useCallback(() => {
-    const currentUrl = window.location.href;
-    
-    debugLog('URL', '🔍 Checking URL for distraction', { currentUrl });
-    
-    // Update current URL in state
-    setUrlState(prev => ({ ...prev, currentUrl }));
-
-    // Skip check if URL is whitelisted
-    if (isUrlWhitelisted(currentUrl)) {
-      debugLog('URL', '✅ URL is whitelisted, clearing any distraction', { currentUrl });
-      setUrlState(prev => ({
-        ...prev,
-        isDistracted: false,
-        startTime: null,
-        distractionType: null
-      }));
-      return;
-    }
-
-    const currentTime = Date.now();
-    const isBlacklisted = isUrlBlacklisted(currentUrl);
-    const isIrrelevant = !isUrlRelevantToTask(currentUrl) && !isBlacklisted;
-
-    debugLog('URL', '🔍 URL analysis', { 
-      currentUrl, 
-      isBlacklisted, 
-      isIrrelevant,
-      isRelevant: isUrlRelevantToTask(currentUrl)
-    });
-
-    if (isBlacklisted) {
-      debugLog('URL', '🚨 BLACKLISTED content detected!', { currentUrl });
-      setUrlState(prev => {
-        if (!prev.startTime || prev.distractionType !== 'blacklisted_content') {
-          debugLog('URL', '⏱️ Started tracking blacklisted content - 5min timer started', { 
-            currentUrl, 
-            threshold: DISTRACTION_THRESHOLDS.BLACKLIST_THRESHOLD / 1000 + 's'
-          });
-          return {
-            ...prev,
-            startTime: currentTime,
-            distractionType: 'blacklisted_content'
-          };
-        } else {
-          // Check if blacklisted duration exceeds threshold
-          const blacklistedDuration = currentTime - prev.startTime;
-          const remainingTime = DISTRACTION_THRESHOLDS.BLACKLIST_THRESHOLD - blacklistedDuration;
-          
-          debugLog('URL', '⏱️ Still on blacklisted content', { 
-            currentUrl,
-            duration: Math.round(blacklistedDuration / 1000) + 's',
-            remaining: Math.round(remainingTime / 1000) + 's',
-            threshold: DISTRACTION_THRESHOLDS.BLACKLIST_THRESHOLD / 1000 + 's'
-          });
-          
-          if (blacklistedDuration > DISTRACTION_THRESHOLDS.BLACKLIST_THRESHOLD && !prev.isDistracted) {
-            debugLog('URL', '🚨🚨 BLACKLIST DISTRACTION TRIGGERED! User on blacklisted site too long!', { 
-              currentUrl,
-              blacklistedDuration: Math.round(blacklistedDuration / 1000) + 's', 
-              threshold: DISTRACTION_THRESHOLDS.BLACKLIST_THRESHOLD / 1000 + 's'
-            });
-
-            // Record distraction
-            setTimeout(() => {
-              recordDistraction({
-                type: 'tab_switch',
-                timestamp: prev.startTime,
-              });
-            }, 0);
-
-            return {
-              ...prev,
-              isDistracted: true
-            };
-          }
-          
-          return prev;
-        }
-      });
-    } else if (isIrrelevant) {
-      debugLog('URL', '⚠️ Irrelevant content detected', { currentUrl });
-      setUrlState(prev => {
-        if (!prev.startTime || prev.distractionType !== 'irrelevant_content') {
-          debugLog('URL', '⏱️ Started tracking irrelevant content - 5min timer started', { 
-            currentUrl,
-            threshold: DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD / 1000 + 's'
-          });
-          return {
-            ...prev,
-            startTime: currentTime,
-            distractionType: 'irrelevant_content'
-          };
-        } else {
-          // Check if irrelevant duration exceeds threshold
-          const irrelevantDuration = currentTime - prev.startTime;
-          const remainingTime = DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD - irrelevantDuration;
-          
-          debugLog('URL', '⏱️ Still on irrelevant content', { 
-            currentUrl,
-            duration: Math.round(irrelevantDuration / 1000) + 's',
-            remaining: Math.round(remainingTime / 1000) + 's'
-          });
-          
-          if (irrelevantDuration > DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD && !prev.isDistracted) {
-            debugLog('URL', '🚨🚨 IRRELEVANT CONTENT DISTRACTION TRIGGERED!', { 
-              currentUrl,
-              irrelevantDuration: Math.round(irrelevantDuration / 1000) + 's', 
-              threshold: DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD / 1000 + 's'
-            });
-
-            // Record distraction
-            setTimeout(() => {
-              recordDistraction({
-                type: 'tab_switch',
-                timestamp: prev.startTime,
-              });
-            }, 0);
-
-            return {
-              ...prev,
-              isDistracted: true
-            };
-          }
-          
-          return prev;
-        }
-      });
-    } else {
-      // URL is relevant - clear URL-related distraction
-      setUrlState(prev => {
-        if (prev.isDistracted || prev.startTime) {
-          debugLog('URL', '✅ URL distraction cleared - back to relevant content', { currentUrl });
-        }
-        return {
-          ...prev,
-          isDistracted: false,
-          startTime: null,
-          distractionType: null
-        };
-      });
-    }
-  }, [isUrlBlacklisted, isUrlWhitelisted, isUrlRelevantToTask, recordDistraction, debugLog]);
-
-  /**
-   * Handle user response to distraction alert
-   */
-  const handleDistractionResponse = useCallback(async (response: 'return_to_course' | 'exploring') => {
-    debugLog('RESPONSE', 'Handling distraction response', { response });
-    
-    if (response === 'return_to_course') {
-      // Clear all distraction states
-      setCombinedState(prev => ({
-        ...prev,
-        isDistracted: false,
-        startTime: null
-      }));
-      
-      setUrlState(prev => ({
-        ...prev,
-        isDistracted: false,
-        startTime: null,
-        distractionType: null
-      }));
-    }
-    
-    // Record the response if there was an active distraction
-    const activeStartTime = combinedState.startTime || urlState.startTime;
-    if (activeStartTime) {
-      const duration = Date.now() - activeStartTime;
-      setTimeout(() => {
-        recordDistraction({
-          type: distractionType as any,
-          timestamp: activeStartTime,
-          duration,
-        });
-      }, 0);
-    }
-  }, [recordDistraction, debugLog, combinedState.startTime, urlState.startTime, distractionType]);
-
-  // Main monitoring effect - sets up intervals
+  // Set up all monitoring systems
   useEffect(() => {
-    const shouldMonitor = isVoyageActive && !isExploringRef.current;
+    const shouldMonitor = isVoyageActive && !isExploring;
     setIsMonitoring(shouldMonitor);
 
     if (!shouldMonitor) {
       // Clear all intervals and reset states
       if (combinedCheckInterval.current) clearInterval(combinedCheckInterval.current);
       if (urlCheckInterval.current) clearInterval(urlCheckInterval.current);
+      if (distractionTimeoutRef.current) clearTimeout(distractionTimeoutRef.current);
+      if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
 
+      setTabSwitchState({
+        isDistracted: false,
+        startTime: null,
+        isTabHidden: false
+      });
 
       setCombinedState({
         isDistracted: false,
@@ -527,79 +512,154 @@ export const useAdvancedDistraction = ({
       return;
     }
 
-    debugLog('SYSTEM', 'Starting monitoring systems', {
-      hasCamera: !!cameraStreamRef.current,
-      geminiConfigured: GeminiService.isConfigured(),
-      screenshotSupported: ScreenshotService.isSupported()
+    debugLog('SYSTEM', 'Starting comprehensive monitoring systems', {
+      hasCamera: !!cameraStream,
+      currentUrl: window.location.href,
+      destination: currentDestination?.destination_name
     });
 
-    // Set up combined screenshot + camera monitoring
-    if (GeminiService.isConfigured() && ScreenshotService.isSupported()) {
-      debugLog('COMBINED', 'Setting up combined monitoring (60s interval)');
-      combinedCheckInterval.current = setInterval(() => {
-        checkCombinedForDistraction().catch(error => {
-          debugLog('COMBINED', '❌ Combined check error', { error });
-        });
-      }, DISTRACTION_THRESHOLDS.SCREENSHOT_INTERVAL);
-      
-      // Initial combined check (after a delay to let things settle)
-      setTimeout(() => {
-        checkCombinedForDistraction().catch(error => {
-          debugLog('COMBINED', '❌ Initial combined check error', { error });
-        });
-      }, 5000);
-    } else {
-      debugLog('COMBINED', 'Combined monitoring not available');
-    }
+    // Initialize activity tracking
+    lastActivityTime.current = Date.now();
+    lastUrlRef.current = window.location.href;
+
+    // Set up tab switching detection
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Set up activity monitoring
+    document.addEventListener('mousemove', handleActivity);
+    document.addEventListener('keydown', handleActivity);
+    document.addEventListener('click', handleActivity);
+    document.addEventListener('scroll', handleActivity);
 
     // Set up URL monitoring
-    debugLog('URL', 'Setting up URL monitoring');
-    urlCheckInterval.current = setInterval(checkUrlForDistraction, 5000); // Check every 5 seconds
-    
-    // Initial URL check
-    setTimeout(checkUrlForDistraction, 100);
+    window.addEventListener('popstate', checkUrlChange);
+    urlCheckInterval.current = setInterval(() => {
+      debugLog('URL', 'Periodic URL check');
+      checkUrlChange();
+    }, 5000);
 
-    // Cleanup function
+    // Set up combined analysis (every 60 seconds)
+    combinedCheckInterval.current = setInterval(() => {
+      performCombinedAnalysis();
+    }, 60000);
+
+    // Initial checks
+    setTimeout(() => {
+      debugLog('SYSTEM', 'Performing initial checks');
+      checkUrlChange();
+    }, 100);
+
+    // Initial idle timeout
+    idleTimeoutRef.current = setTimeout(() => {
+      const timeSinceActivity = Date.now() - lastActivityTime.current;
+      if (timeSinceActivity >= 90000 && !tabSwitchState.isDistracted && !combinedState.isDistracted) {
+        debugLog('ACTIVITY', 'Initial idle timeout triggered');
+        setCombinedState(prev => ({
+          ...prev,
+          isDistracted: true,
+          startTime: Date.now() - timeSinceActivity
+        }));
+        recordDistraction({
+          type: 'idle',
+          timestamp: Date.now() - timeSinceActivity,
+        });
+      }
+    }, 90000);
+
     return () => {
+      debugLog('SYSTEM', 'Cleaning up all monitoring systems');
+      
+      // Remove event listeners
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('mousemove', handleActivity);
+      document.removeEventListener('keydown', handleActivity);
+      document.removeEventListener('click', handleActivity);
+      document.removeEventListener('scroll', handleActivity);
+      window.removeEventListener('popstate', checkUrlChange);
+      
+      // Clear intervals and timeouts
       if (combinedCheckInterval.current) clearInterval(combinedCheckInterval.current);
       if (urlCheckInterval.current) clearInterval(urlCheckInterval.current);
-      
-      debugLog('SYSTEM', 'Monitoring cleanup completed');
+      if (distractionTimeoutRef.current) clearTimeout(distractionTimeoutRef.current);
+      if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
     };
-  }, [isVoyageActive, checkCombinedForDistraction, checkUrlForDistraction, debugLog]);
+  }, [isVoyageActive, isExploring, handleVisibilityChange, handleActivity, checkUrlChange, performCombinedAnalysis, recordDistraction, debugLog, cameraStream, currentDestination, tabSwitchState.isDistracted, combinedState.isDistracted]);
+
+  /**
+   * Handle user response to distraction alert
+   */
+  const handleDistractionResponse = useCallback(async (response: 'return_to_course' | 'exploring') => {
+    debugLog('RESPONSE', 'Handling distraction response', { response });
+    
+    if (response === 'return_to_course') {
+      // Clear all distraction states
+      setTabSwitchState(prev => ({
+        ...prev,
+        isDistracted: false,
+        startTime: null
+      }));
+
+      setCombinedState(prev => ({
+        ...prev,
+        isDistracted: false,
+        startTime: null
+      }));
+      
+      setUrlState(prev => ({
+        ...prev,
+        isDistracted: false,
+        startTime: null,
+        distractionType: null
+      }));
+    }
+    
+    // Record the response if there was an active distraction
+    const activeStartTime = tabSwitchState.startTime || combinedState.startTime || urlState.startTime;
+    if (activeStartTime) {
+      const duration = Date.now() - activeStartTime;
+      setTimeout(() => {
+        recordDistraction({
+          type: getDominantDistractionType(),
+          timestamp: activeStartTime,
+          duration,
+        });
+      }, 0);
+    }
+  }, [recordDistraction, debugLog, tabSwitchState.startTime, combinedState.startTime, urlState.startTime]);
+
+  // Helper function to determine dominant distraction type
+  const getDominantDistractionType = () => {
+    if (tabSwitchState.isDistracted) return 'tab_switch';
+    if (urlState.isDistracted) return urlState.distractionType || 'tab_switch';
+    if (combinedState.isDistracted) return 'camera_distraction';
+    return 'tab_switch';
+  };
+
+  // Combined distraction state
+  const isDistracted = tabSwitchState.isDistracted || combinedState.isDistracted || urlState.isDistracted;
+  const distractionType = getDominantDistractionType();
+
+  // Diagnostics for debugging
+  const diagnostics = {
+    tabSwitch: tabSwitchState,
+    combined: combinedState,
+    url: urlState,
+    monitoring: isMonitoring,
+    voyageActive: isVoyageActive,
+    exploring: isExploring
+  };
 
   return {
     isDistracted,
     distractionType,
-    confidenceLevel,
+    confidenceLevel: combinedState.confidenceLevel,
     isMonitoring,
-    lastAnalysisResults,
-    currentUrl: urlState.currentUrl,
-    handleDistractionResponse,
-    
-    // Diagnostic information
-    diagnostics: {
-      cameraAvailable: !!cameraStream,
-      geminiConfigured: GeminiService.isConfigured(),
-      screenshotSupported: ScreenshotService.isSupported(),
-      
-      // Combined status
-      combined: {
-        isActive: !!combinedCheckInterval.current,
-        isDistracted: combinedState.isDistracted,
-        lastCheck: combinedState.lastCheck,
-        error: combinedState.error,
-        confidenceLevel: combinedState.confidenceLevel,
-        lastCameraAnalysis: combinedState.lastCameraAnalysis,
-        lastScreenshotAnalysis: combinedState.lastScreenshotAnalysis
-      },
-      
-      url: {
-        isActive: !!urlCheckInterval.current,
-        isDistracted: urlState.isDistracted,
-        currentUrl: urlState.currentUrl,
-        distractionType: urlState.distractionType
-      }
-    }
+    lastAnalysisResults: {
+      combined: combinedState.lastScreenshotAnalysis,
+      url: urlState,
+      tabSwitch: tabSwitchState
+    },
+    diagnostics,
+    handleDistractionResponse
   };
 };
