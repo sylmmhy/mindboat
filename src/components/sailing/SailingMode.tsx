@@ -4,13 +4,15 @@ import { Anchor, Volume2, VolumeX, Settings, ArrowLeft, Compass } from 'lucide-r
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { CameraView } from './CameraView';
-import { DistractionAlert } from './DistractionAlert';
+import { EnhancedDistractionAlert } from './EnhancedDistractionAlert';
 import { ExplorationMode } from './ExplorationMode';
 import { SeagullCompanion } from './SeagullCompanion';
 import { WeatherSystem } from './WeatherSystem';
+import { VoiceInteractionPanel } from './VoiceInteractionPanel';
 import { useVoyageStore } from '../../stores/voyageStore';
 import { useAdvancedDistraction } from '../../hooks/useAdvancedDistraction';
 import { useAudio } from '../../hooks/useAudio';
+import { useVoiceInteraction } from '../../hooks/useVoiceInteraction';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { 
   getHighPrecisionTime, 
@@ -36,6 +38,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const [inspirationNotes, setInspirationNotes] = useState<Array<{ content: string, type: 'text' | 'voice', timestamp: number }>>([]);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraPermissionGranted, setCameraPermissionGranted] = useState(false);
+  const [showVoicePanel, setShowVoicePanel] = useState(false);
 
   // Use stable selectors to prevent unnecessary re-renders
   const currentVoyage = useVoyageStore(state => state.currentVoyage);
@@ -66,6 +69,22 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     adjustVolume,
     setWeatherMood: setAudioWeatherMood
   } = useAudio();
+
+  // Voice interaction hook
+  const {
+    isVoiceEnabled,
+    isListening,
+    isSpeaking,
+    voiceStatus,
+    handleVoiceDistractionAlert,
+    captureVoiceInspiration,
+    announceVoyageCompletion
+  } = useVoiceInteraction({
+    isVoyageActive: !!currentVoyage,
+    isExploring,
+    onDistractionResponse: handleDistractionChoice,
+    onInspirationCaptured: handleCaptureInspiration
+  });
 
   // High-precision timer
   const timerRef = useRef<ReturnType<typeof createPrecisionInterval>>();
@@ -112,12 +131,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         
         // 30-minute milestone
         if (elapsedSeconds === 1800 && !localStorage.getItem(`milestone-30-${currentVoyage.id}`)) {
-          showSuccess('30 minutes of sustained focus!', 'Great Achievement');
+          showSuccess('30分钟的持续专注！', '出色成就');
           localStorage.setItem(`milestone-30-${currentVoyage.id}`, 'true');
         }
         // 1-hour milestone  
         else if (elapsedSeconds === 3600 && !localStorage.getItem(`milestone-60-${currentVoyage.id}`)) {
-          showSuccess('1 full hour of deep focus!', 'Excellent Work');
+          showSuccess('整整1小时的深度专注！', '卓越表现');
           localStorage.setItem(`milestone-60-${currentVoyage.id}`, 'true');
         }
       }, 100); // Update every 100ms for smooth display
@@ -132,7 +151,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     };
   }, [currentVoyage?.id, currentVoyage?.start_time, showSuccess]);
 
-  // Enhanced distraction alert effect
+  // Enhanced distraction alert effect with voice integration
   useEffect(() => {
     if (isDistracted && !isExploring) {
       setShowDistractionAlert(true);
@@ -179,9 +198,15 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   }, [isDistracted, isExploring]);
 
   const handleEndVoyage = useCallback(async () => {
+    // Announce voyage completion with voice if enabled
+    if (isVoiceEnabled && destination) {
+      const duration = formatPreciseDuration(elapsedTime);
+      await announceVoyageCompletion(destination.destination_name, duration);
+    }
+
     await endVoyage();
     onEndVoyage();
-  }, [endVoyage, onEndVoyage]);
+  }, [endVoyage, onEndVoyage, isVoiceEnabled, destination, elapsedTime, announceVoyageCompletion]);
 
   const handleDistractionChoice = useCallback(async (choice: 'return_to_course' | 'exploring') => {
     await handleDistractionResponse(choice);
@@ -218,8 +243,8 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     setShowSeagull(true);
 
     showSuccess(
-      `${type === 'voice' ? 'Voice note' : 'Text note'} captured successfully!`,
-      'Inspiration Saved'
+      `${type === 'voice' ? '语音笔记' : '文字笔记'}已成功记录！`,
+      '灵感已保存'
     );
   }, [showSuccess]);
 
@@ -335,35 +360,29 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             <span className="text-white font-mono text-lg">{formatTime(elapsedTime)}</span>
           </div>
           <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
-            <span className="text-white text-sm">Distractions: {distractionCount}</span>
+            <span className="text-white text-sm">分心次数: {distractionCount}</span>
           </div>
           <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
             <span className="text-white text-sm">{getWeatherEmoji()} {weatherMood}</span>
           </div>
           {isExploring && (
             <div className="bg-purple-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-              <span className="text-white text-sm">🧭 Exploring</span>
+              <span className="text-white text-sm">🧭 探索中</span>
             </div>
           )}
           {inspirationNotes.length > 0 && (
             <div className="bg-green-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-              <span className="text-white text-sm">💡 {inspirationNotes.length} notes</span>
+              <span className="text-white text-sm">💡 {inspirationNotes.length} 条笔记</span>
             </div>
           )}
           {cameraPermissionGranted && (
             <div className="bg-green-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-              <span className="text-white text-sm">📷 AI Monitoring</span>
+              <span className="text-white text-sm">📷 AI监控</span>
             </div>
           )}
-          {/* Show screen sharing status */}
-          <div className="bg-blue-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-            <span className="text-white text-sm">
-              🖥️ {diagnostics.screenSharingAvailable ? 'Screen Analysis' : 'Basic Mode'}
-            </span>
-          </div>
-          {diagnostics.geminiConfigured && (
+          {isVoiceEnabled && (
             <div className="bg-blue-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-              <span className="text-white text-sm">🤖 Gemini Ready</span>
+              <span className="text-white text-sm">🎤 语音助手</span>
             </div>
           )}
         </div>
@@ -384,6 +403,14 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </Button>
           <Button
+            onClick={() => setShowVoicePanel(!showVoicePanel)}
+            variant="ghost"
+            size="sm"
+            className={`text-white hover:bg-white/20 ${showVoicePanel ? 'bg-white/20' : ''}`}
+          >
+            🎤
+          </Button>
+          <Button
             onClick={() => setShowControls(!showControls)}
             variant="ghost"
             size="sm"
@@ -393,6 +420,13 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           </Button>
         </div>
       </div>
+
+      {/* Voice Interaction Panel */}
+      <VoiceInteractionPanel
+        isVisible={showVoicePanel}
+        isExploring={isExploring}
+        onInspirationCaptured={handleCaptureInspiration}
+      />
 
       {/* Controls Panel */}
       <AnimatePresence>
@@ -404,15 +438,14 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             className="absolute top-16 right-4 z-20"
           >
             <Card className="p-6 w-80 max-h-96 overflow-y-auto">
-              <h3 className="font-semibold mb-4">Sailing Controls</h3>
+              <h3 className="font-semibold mb-4">航行控制</h3>
 
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium mb-3">
-                    Ambient Volume: {isMuted ? 'Muted' : `${Math.round(volume * 100)}%`}
+                    环境音量: {isMuted ? '静音' : `${Math.round(volume * 100)}%`}
                   </label>
                   <div className="relative">
-                    {/* Custom styled range input */}
                     <input
                       type="range"
                       min="0"
@@ -424,111 +457,62 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                     />
                   </div>
                   <div className="flex justify-between text-xs text-gray-500 mt-2">
-                    <span>Mute</span>
-                    <span>Max</span>
+                    <span>静音</span>
+                    <span>最大</span>
                   </div>
                 </div>
 
                 <div className="border-t pt-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="font-medium text-gray-700">Audio:</span>
+                      <span className="font-medium text-gray-700">音频:</span>
                       <span className={`ml-2 ${isPlaying ? 'text-green-600' : 'text-red-600'}`}>
-                        {isPlaying ? (isMuted ? 'Muted' : 'Playing') : 'Stopped'}
+                        {isPlaying ? (isMuted ? '静音' : '播放中') : '已停止'}
                       </span>
                     </div>
                     <div>
-                      <span className="font-medium text-gray-700">Monitoring:</span>
+                      <span className="font-medium text-gray-700">监控:</span>
                       <span className={`ml-2 ${isMonitoring ? 'text-green-600' : 'text-gray-500'}`}>
-                        {isMonitoring ? 'Active' : 'Inactive'}
+                        {isMonitoring ? '活跃' : '非活跃'}
                       </span>
                     </div>
                     <div className="col-span-2">
-                      <span className="font-medium text-gray-700">Mode:</span>
+                      <span className="font-medium text-gray-700">模式:</span>
                       <span className={`ml-2 ${isExploring ? 'text-purple-600' : 'text-blue-600'}`}>
-                        {isExploring ? 'Exploration' : 'Focus'}
+                        {isExploring ? '探索' : '专注'}
                       </span>
                     </div>
                     
-                    {/* Advanced monitoring status */}
+                    {/* Voice status */}
                     <div className="col-span-2 border-t pt-2">
-                      <p className="text-sm font-medium text-gray-700 mb-2">AI Monitoring Status:</p>
+                      <p className="text-sm font-medium text-gray-700 mb-2">语音助手状态:</p>
                       <div className="text-xs space-y-1">
                         <div className="flex justify-between">
-                          <span>Camera:</span>
-                          <span className={diagnostics.cameraAvailable ? 'text-green-600' : 'text-gray-500'}>
-                            {diagnostics.cameraAvailable ? 'Active' : 'Not available'}
+                          <span>语音识别:</span>
+                          <span className={voiceStatus.features.speechRecognition ? 'text-green-600' : 'text-gray-500'}>
+                            {voiceStatus.features.speechRecognition ? '可用' : '不可用'}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Screen Sharing:</span>
-                          <span className={diagnostics.screenSharingAvailable ? 'text-green-600' : 'text-gray-500'}>
-                            {diagnostics.screenSharingAvailable ? 'Active' : 'Not available'}
+                          <span>AI语音:</span>
+                          <span className={voiceStatus.features.elevenLabs ? 'text-green-600' : 'text-gray-500'}>
+                            {voiceStatus.features.elevenLabs ? '可用' : '不可用'}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Combined Analysis:</span>
-                          <span className={diagnostics.combined?.isActive ? 'text-green-600' : 'text-gray-500'}>
-                            {diagnostics.combined?.isActive ? 'Active (60s)' : 'Inactive'}
+                          <span>状态:</span>
+                          <span className={isListening ? 'text-blue-600' : isSpeaking ? 'text-green-600' : 'text-gray-500'}>
+                            {isListening ? '聆听中' : isSpeaking ? '说话中' : '待机'}
                           </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span>Gemini AI:</span>
-                          <span className={diagnostics.geminiConfigured ? 'text-green-600' : 'text-yellow-600'}>
-                            {diagnostics.geminiConfigured ? 'Connected' : 'Not configured'}
-                          </span>
-                        </div>
-                        {(isDistracted || diagnostics.combined?.isDistracted || diagnostics.url?.isDistracted) && (
-                          <div className="mt-2 text-red-600">
-                            <span>Overall Status: 🚨 DISTRACTED ({distractionType})</span>
-                          </div>
-                        )}
-                        {diagnostics.combined?.lastCameraAnalysis && (
-                          <div className="mt-2 text-xs text-blue-600">
-                            <p>📷 Camera: {diagnostics.combined.lastCameraAnalysis.personPresent ? '✅ Present' : '❌ Absent'} | 
-                            {diagnostics.combined.lastCameraAnalysis.appearsFocused ? ' ✅ Focused' : ' ❌ Distracted'}</p>
-                          </div>
-                        )}
-                        {diagnostics.combined?.lastScreenshotAnalysis?.screenAnalysis && (
-                          <div className="mt-1 text-xs text-green-600">
-                            <p>🖥️ Screen: {diagnostics.combined.lastScreenshotAnalysis.screenAnalysis.contentType} | 
-                            {diagnostics.combined.lastScreenshotAnalysis.screenAnalysis.isProductiveContent ? ' ✅ Productive' : ' ❌ Distracting'}</p>
-                          </div>
-                        )}
-                         {diagnostics.url?.currentUrl && (
-                           <div className="mt-2 text-xs text-gray-600">
-                             <p>🔗 Current URL: {diagnostics.url.currentUrl.length > 50 ? 
-                               diagnostics.url.currentUrl.substring(0, 50) + '...' : 
-                               diagnostics.url.currentUrl}</p>
-                             <p>URL Status: {diagnostics.url?.isDistracted ? '🚨 Distracting' : '✅ Relevant'}</p>
-                           </div>
-                         )}
-                        {(diagnostics.combined?.lastScreenshotAnalysis?.distractionLevel && 
-                          diagnostics.combined.lastScreenshotAnalysis.distractionLevel !== 'none') && (
-                          <div className="mt-1 text-xs text-orange-600">
-                            <p>⚠️ Distraction Level: {diagnostics.combined.lastScreenshotAnalysis.distractionLevel}</p>
-                            <p>💡 Suggested Action: {diagnostics.combined.lastScreenshotAnalysis.suggestedAction}</p>
-                          </div>
-                        )}
                       </div>
-                    </div>
-                    <div className="mt-2 pt-2 border-t text-xs text-gray-400">
-                      <p>🔍 Active Detection Systems:</p>
-                      <p>• Tab switch detection (instant)</p>
-                      <p>• URL blacklist monitoring (15s timeout for testing)</p>
-                      <p>• Combined screenshot + camera analysis (60s interval) {diagnostics.screenSharingAvailable ? '✅' : '❌'}</p>
-                      <p>• Idle detection (90s timeout)</p>
-                      <p>• Debouncing: 5s minimum between distractions</p>
-                      {!diagnostics.screenSharingAvailable && (
-                        <p className="text-yellow-400 mt-1">💡 Grant screen sharing permission for advanced monitoring</p>
-                      )}
                     </div>
                   </div>
                 </div>
 
                 {inspirationNotes.length > 0 && (
                   <div className="border-t pt-4">
-                    <p className="text-sm font-medium mb-2">Recent Notes:</p>
+                    <p className="text-sm font-medium mb-2">最近笔记:</p>
                     <div className="max-h-16 overflow-y-auto text-xs text-gray-600 space-y-1">
                       {inspirationNotes.slice(-3).map((note, index) => (
                         <div key={index} className="p-2 bg-gray-50 rounded">
@@ -547,7 +531,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                     className="w-full"
                     icon={ArrowLeft}
                   >
-                    End Voyage
+                    结束航行
                   </Button>
                 </div>
               </div>
@@ -556,12 +540,13 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         )}
       </AnimatePresence>
 
-      {/* Distraction Alert */}
-      <DistractionAlert
+      {/* Enhanced Distraction Alert with Voice */}
+      <EnhancedDistractionAlert
         isVisible={showDistractionAlert}
         onResponse={handleDistractionChoice}
         distractionType={distractionType || 'tab_switch'}
         duration={elapsedTime}
+        enableVoice={isVoiceEnabled}
       />
 
       {/* Exploration Mode */}
@@ -583,14 +568,19 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       <div className="absolute bottom-4 left-4 right-4 z-10">
         <div className="bg-white/20 backdrop-blur-sm rounded-lg px-6 py-3">
           <p className="text-white text-center">
-            Sailing to <strong>{destination.destination_name}</strong>
+            航行至 <strong>{destination.destination_name}</strong>
           </p>
           <p className="text-white/80 text-sm text-center mt-1">
             {destination.description}
           </p>
-          {!diagnostics.geminiConfigured && (
+          {isVoiceEnabled && (
+            <p className="text-blue-200 text-xs text-center mt-2">
+              🎤 语音助手已就绪 - 可语音交互
+            </p>
+          )}
+          {!voiceStatus.features.elevenLabs && voiceStatus.features.speechRecognition && (
             <p className="text-yellow-300 text-xs text-center mt-2">
-              💡 Add Gemini API key for advanced AI monitoring
+              💡 添加 ElevenLabs API 密钥以启用AI语音
             </p>
           )}
         </div>
