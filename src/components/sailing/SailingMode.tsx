@@ -8,9 +8,11 @@ import { EnhancedDistractionAlert } from './EnhancedDistractionAlert';
 import { ExplorationMode } from './ExplorationMode';
 import { SeagullCompanion } from './SeagullCompanion';
 import { WeatherSystem } from './WeatherSystem';
+import { VoiceInteractionPanel } from './VoiceInteractionPanel';
 import { useVoyageStore } from '../../stores/voyageStore';
 import { useAdvancedDistraction } from '../../hooks/useAdvancedDistraction';
 import { useAudio } from '../../hooks/useAudio';
+import { useVoiceInteraction } from '../../hooks/useVoiceInteraction';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { 
   getHighPrecisionTime, 
@@ -36,6 +38,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const [inspirationNotes, setInspirationNotes] = useState<Array<{ content: string, type: 'text' | 'voice', timestamp: number }>>([]);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraPermissionGranted, setCameraPermissionGranted] = useState(false);
+  const [showVoicePanel, setShowVoicePanel] = useState(false);
 
   // Use stable selectors to prevent unnecessary re-renders
   const currentVoyage = useVoyageStore(state => state.currentVoyage);
@@ -43,6 +46,56 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const endVoyage = useVoyageStore(state => state.endVoyage);
   
   const { showSuccess } = useNotificationStore();
+
+  // High-precision timer
+  const timerRef = useRef<ReturnType<typeof createPrecisionInterval>>();
+  const startTimeRef = useRef<number>(0);
+  const boatPosition = useRef({ x: 50, y: 50 });
+  const trail = useRef<Array<{ x: number; y: number; timestamp: number }>>([]);
+  const seagullTimerRef = useRef<NodeJS.Timeout>();
+
+  // Define callback functions BEFORE they are used in hooks
+  const handleDistractionChoice = useCallback(async (choice: 'return_to_course' | 'exploring') => {
+    console.log('🚨 [SAILING] Handling distraction choice:', choice);
+    setShowDistractionAlert(false);
+
+    if (choice === 'exploring') {
+      setIsExploring(true);
+      if (weatherMood !== 'cloudy') {
+        setWeatherMood('cloudy');
+        setAudioWeatherMood('cloudy');
+      }
+    } else {
+      setIsExploring(false);
+    }
+  }, [weatherMood]);
+
+  const handleReturnToCourse = useCallback(() => {
+    setIsExploring(false);
+    if (weatherMood !== 'sunny') {
+      setWeatherMood('sunny');
+      setAudioWeatherMood('sunny');
+    }
+  }, [weatherMood]);
+
+  const handleCaptureInspiration = useCallback((content: string, type: 'text' | 'voice') => {
+    const newNote = {
+      content,
+      type,
+      timestamp: getHighPrecisionTime()
+    };
+    setInspirationNotes(prev => [...prev, newNote]);
+
+    // Show seagull with encouraging message
+    setShowSeagull(true);
+
+    showSuccess(
+      `${type === 'voice' ? 'Voice note' : 'Text note'} captured successfully!`,
+      'Inspiration Saved'
+    );
+  }, [showSuccess]);
+
+  // Now initialize hooks that depend on the callback functions
   const {
     isDistracted,
     distractionType,
@@ -56,6 +109,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     currentDestination: destination,
     cameraStream 
   });
+
   const {
     isPlaying,
     volume,
@@ -67,12 +121,21 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     setWeatherMood: setAudioWeatherMood
   } = useAudio();
 
-  // High-precision timer
-  const timerRef = useRef<ReturnType<typeof createPrecisionInterval>>();
-  const startTimeRef = useRef<number>(0);
-  const boatPosition = useRef({ x: 50, y: 50 });
-  const trail = useRef<Array<{ x: number; y: number; timestamp: number }>>([]);
-  const seagullTimerRef = useRef<NodeJS.Timeout>();
+  // Voice interaction hook
+  const {
+    isVoiceEnabled,
+    isListening,
+    isSpeaking,
+    voiceStatus,
+    handleVoiceDistractionAlert,
+    captureVoiceInspiration,
+    announceVoyageCompletion
+  } = useVoiceInteraction({
+    isVoyageActive: !!currentVoyage,
+    isExploring,
+    onDistractionResponse: handleDistractionChoice,
+    onInspirationCaptured: handleCaptureInspiration
+  });
 
   // Initialize services and start monitoring
   useEffect(() => {
@@ -132,13 +195,14 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     };
   }, [currentVoyage?.id, currentVoyage?.start_time, showSuccess]);
 
-  // Enhanced distraction alert effect
+  // Enhanced distraction alert effect with voice integration
   useEffect(() => {
     console.log('🚨 [SAILING] Distraction state changed:', {
       isDistracted,
       isExploring,
       showDistractionAlert,
-      distractionType
+      distractionType,
+      isVoiceEnabled
     });
 
     if (isDistracted && !isExploring) {
@@ -158,7 +222,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         setAudioWeatherMood('sunny');
       }
     }
-  }, [isDistracted, isExploring, weatherMood, setAudioWeatherMood, distractionType]);
+  }, [isDistracted, isExploring, weatherMood, setAudioWeatherMood, distractionType, isVoiceEnabled]);
 
   // Boat animation effect
   useEffect(() => {
@@ -190,50 +254,22 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   }, [isDistracted, isExploring]);
 
   const handleEndVoyage = useCallback(async () => {
+    // Announce voyage completion with voice if enabled
+    if (isVoiceEnabled && destination) {
+      const duration = formatPreciseDuration(elapsedTime);
+      await announceVoyageCompletion(destination.destination_name, duration);
+    }
+
     await endVoyage();
     onEndVoyage();
-  }, [endVoyage, onEndVoyage]);
+  }, [endVoyage, onEndVoyage, isVoiceEnabled, destination, elapsedTime, announceVoyageCompletion]);
 
-  const handleDistractionChoice = useCallback(async (choice: 'return_to_course' | 'exploring') => {
-    console.log('🚨 [SAILING] Handling distraction choice:', choice);
+  // Update handleDistractionChoice to use handleDistractionResponse
+  const handleDistractionChoiceWithResponse = useCallback(async (choice: 'return_to_course' | 'exploring') => {
+    console.log('🚨 [SAILING] Handling distraction choice with response:', choice);
     await handleDistractionResponse(choice);
-    setShowDistractionAlert(false);
-
-    if (choice === 'exploring') {
-      setIsExploring(true);
-      if (weatherMood !== 'cloudy') {
-        setWeatherMood('cloudy');
-        setAudioWeatherMood('cloudy');
-      }
-    } else {
-      setIsExploring(false);
-    }
-  }, [handleDistractionResponse, weatherMood, setAudioWeatherMood]);
-
-  const handleReturnToCourse = useCallback(() => {
-    setIsExploring(false);
-    if (weatherMood !== 'sunny') {
-      setWeatherMood('sunny');
-      setAudioWeatherMood('sunny');
-    }
-  }, [weatherMood, setAudioWeatherMood]);
-
-  const handleCaptureInspiration = useCallback((content: string, type: 'text' | 'voice') => {
-    const newNote = {
-      content,
-      type,
-      timestamp: getHighPrecisionTime()
-    };
-    setInspirationNotes(prev => [...prev, newNote]);
-
-    // Show seagull with encouraging message
-    setShowSeagull(true);
-
-    showSuccess(
-      `${type === 'voice' ? 'Voice note' : 'Text note'} captured successfully!`,
-      'Inspiration Saved'
-    );
-  }, [showSuccess]);
+    await handleDistractionChoice(choice);
+  }, [handleDistractionResponse, handleDistractionChoice]);
 
   // Handle camera stream changes
   const handleCameraStream = useCallback((stream: MediaStream | null) => {
@@ -367,15 +403,9 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
               <span className="text-white text-sm">📷 AI Monitoring</span>
             </div>
           )}
-          {/* Show screen sharing status */}
-          <div className="bg-blue-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-            <span className="text-white text-sm">
-              🖥️ {diagnostics.screenSharingAvailable ? 'Screen Analysis' : 'Basic Mode'}
-            </span>
-          </div>
-          {diagnostics.geminiConfigured && (
+          {isVoiceEnabled && (
             <div className="bg-blue-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-              <span className="text-white text-sm">🤖 Gemini Ready</span>
+              <span className="text-white text-sm">🎤 Voice Assistant</span>
             </div>
           )}
           {/* Show distraction alert status for debugging */}
@@ -402,6 +432,14 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </Button>
           <Button
+            onClick={() => setShowVoicePanel(!showVoicePanel)}
+            variant="ghost"
+            size="sm"
+            className={`text-white hover:bg-white/20 ${showVoicePanel ? 'bg-white/20' : ''}`}
+          >
+            🎤
+          </Button>
+          <Button
             onClick={() => setShowControls(!showControls)}
             variant="ghost"
             size="sm"
@@ -411,6 +449,13 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           </Button>
         </div>
       </div>
+
+      {/* Voice Interaction Panel */}
+      <VoiceInteractionPanel
+        isVisible={showVoicePanel}
+        isExploring={isExploring}
+        onInspirationCaptured={handleCaptureInspiration}
+      />
 
       {/* Controls Panel */}
       <AnimatePresence>
@@ -430,7 +475,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                     Ambient Volume: {isMuted ? 'Muted' : `${Math.round(volume * 100)}%`}
                   </label>
                   <div className="relative">
-                    {/* Custom styled range input */}
                     <input
                       type="range"
                       min="0"
@@ -468,78 +512,35 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                       </span>
                     </div>
                     
-                    {/* Advanced monitoring status */}
+                    {/* Voice status */}
                     <div className="col-span-2 border-t pt-2">
-                      <p className="text-sm font-medium text-gray-700 mb-2">AI Monitoring Status:</p>
+                      <p className="text-sm font-medium text-gray-700 mb-2">Voice Assistant Status:</p>
                       <div className="text-xs space-y-1">
                         <div className="flex justify-between">
-                          <span>Camera:</span>
-                          <span className={diagnostics.cameraAvailable ? 'text-green-600' : 'text-gray-500'}>
-                            {diagnostics.cameraAvailable ? 'Active' : 'Not available'}
+                          <span>Speech Recognition:</span>
+                          <span className={voiceStatus.features.speechRecognition ? 'text-green-600' : 'text-gray-500'}>
+                            {voiceStatus.features.speechRecognition ? 'Available' : 'Not available'}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Screen Sharing:</span>
-                          <span className={diagnostics.screenSharingAvailable ? 'text-green-600' : 'text-gray-500'}>
-                            {diagnostics.screenSharingAvailable ? 'Active' : 'Not available'}
+                          <span>AI Voice:</span>
+                          <span className={voiceStatus.features.elevenLabs ? 'text-green-600' : 'text-gray-500'}>
+                            {voiceStatus.features.elevenLabs ? 'Available' : 'Not available'}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Combined Analysis:</span>
-                          <span className={diagnostics.combined?.isActive ? 'text-green-600' : 'text-gray-500'}>
-                            {diagnostics.combined?.isActive ? 'Active (60s)' : 'Inactive'}
+                          <span>Status:</span>
+                          <span className={isListening ? 'text-blue-600' : isSpeaking ? 'text-green-600' : 'text-gray-500'}>
+                            {isListening ? 'Listening' : isSpeaking ? 'Speaking' : 'Standby'}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Gemini AI:</span>
-                          <span className={diagnostics.geminiConfigured ? 'text-green-600' : 'text-yellow-600'}>
-                            {diagnostics.geminiConfigured ? 'Connected' : 'Not configured'}
+                          <span>Alert Active:</span>
+                          <span className={showDistractionAlert ? 'text-red-600' : 'text-gray-500'}>
+                            {showDistractionAlert ? 'YES' : 'No'}
                           </span>
                         </div>
-                        {(isDistracted || diagnostics.combined?.isDistracted || diagnostics.url?.isDistracted) && (
-                          <div className="mt-2 text-red-600">
-                            <span>Overall Status: 🚨 DISTRACTED ({distractionType})</span>
-                          </div>
-                        )}
-                        {diagnostics.combined?.lastCameraAnalysis && (
-                          <div className="mt-2 text-xs text-blue-600">
-                            <p>📷 Camera: {diagnostics.combined.lastCameraAnalysis.personPresent ? '✅ Present' : '❌ Absent'} | 
-                            {diagnostics.combined.lastCameraAnalysis.appearsFocused ? ' ✅ Focused' : ' ❌ Distracted'}</p>
-                          </div>
-                        )}
-                        {diagnostics.combined?.lastScreenshotAnalysis?.screenAnalysis && (
-                          <div className="mt-1 text-xs text-green-600">
-                            <p>🖥️ Screen: {diagnostics.combined.lastScreenshotAnalysis.screenAnalysis.contentType} | 
-                            {diagnostics.combined.lastScreenshotAnalysis.screenAnalysis.isProductiveContent ? ' ✅ Productive' : ' ❌ Distracting'}</p>
-                          </div>
-                        )}
-                         {diagnostics.url?.currentUrl && (
-                           <div className="mt-2 text-xs text-gray-600">
-                             <p>🔗 Current URL: {diagnostics.url.currentUrl.length > 50 ? 
-                               diagnostics.url.currentUrl.substring(0, 50) + '...' : 
-                               diagnostics.url.currentUrl}</p>
-                             <p>URL Status: {diagnostics.url?.isDistracted ? '🚨 Distracting' : '✅ Relevant'}</p>
-                           </div>
-                         )}
-                        {(diagnostics.combined?.lastScreenshotAnalysis?.distractionLevel && 
-                          diagnostics.combined.lastScreenshotAnalysis.distractionLevel !== 'none') && (
-                          <div className="mt-1 text-xs text-orange-600">
-                            <p>⚠️ Distraction Level: {diagnostics.combined.lastScreenshotAnalysis.distractionLevel}</p>
-                            <p>💡 Suggested Action: {diagnostics.combined.lastScreenshotAnalysis.suggestedAction}</p>
-                          </div>
-                        )}
                       </div>
-                    </div>
-                    <div className="mt-2 pt-2 border-t text-xs text-gray-400">
-                      <p>🔍 Active Detection Systems:</p>
-                      <p>• Tab switch detection (instant)</p>
-                      <p>• URL blacklist monitoring (15s timeout for testing)</p>
-                      <p>• Combined screenshot + camera analysis (60s interval) {diagnostics.screenSharingAvailable ? '✅' : '❌'}</p>
-                      <p>• Idle detection (90s timeout)</p>
-                      <p>• Debouncing: 5s minimum between distractions</p>
-                      {!diagnostics.screenSharingAvailable && (
-                        <p className="text-yellow-400 mt-1">💡 Grant screen sharing permission for advanced monitoring</p>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -574,12 +575,13 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         )}
       </AnimatePresence>
 
-      {/* Enhanced Distraction Alert */}
+      {/* Enhanced Distraction Alert with Voice - THIS IS THE KEY COMPONENT */}
       <EnhancedDistractionAlert
         isVisible={showDistractionAlert}
-        onResponse={handleDistractionChoice}
+        onResponse={handleDistractionChoiceWithResponse}
         distractionType={distractionType || 'tab_switch'}
         duration={elapsedTime}
+        enableVoice={isVoiceEnabled}
       />
 
       {/* Exploration Mode */}
@@ -606,14 +608,19 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           <p className="text-white/80 text-sm text-center mt-1">
             {destination.description}
           </p>
-          {!diagnostics.geminiConfigured && (
+          {isVoiceEnabled && (
+            <p className="text-blue-200 text-xs text-center mt-2">
+              🎤 Voice assistant ready - voice interaction available
+            </p>
+          )}
+          {!voiceStatus.features.elevenLabs && voiceStatus.features.speechRecognition && (
             <p className="text-yellow-300 text-xs text-center mt-2">
-              💡 Add Gemini API key for advanced AI monitoring
+              💡 Add ElevenLabs API key for AI voice responses
             </p>
           )}
           {import.meta.env.DEV && (
             <p className="text-green-200 text-xs text-center mt-2">
-              🔧 DEV: Alert={showDistractionAlert ? 'ON' : 'OFF'} | Distracted={isDistracted ? 'YES' : 'NO'}
+              🔧 DEV: Alert={showDistractionAlert ? 'ON' : 'OFF'} | Distracted={isDistracted ? 'YES' : 'NO'} | Voice={isVoiceEnabled ? 'ON' : 'OFF'}
             </p>
           )}
         </div>
