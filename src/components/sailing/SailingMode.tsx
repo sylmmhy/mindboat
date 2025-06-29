@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Anchor, Volume2, VolumeX, Settings, AlertTriangle, ArrowLeft, Compass, MessageCircle } from 'lucide-react';
+import { Anchor, Volume2, VolumeX, Settings, ArrowLeft, Compass } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { DistractionAlert } from './DistractionAlert';
@@ -25,24 +25,24 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const [showDistractionAlert, setShowDistractionAlert] = useState(false);
   const [isExploring, setIsExploring] = useState(false);
   const [showSeagull, setShowSeagull] = useState(false);
-  const [inspirationNotes, setInspirationNotes] = useState<Array<{content: string, type: 'text' | 'voice', timestamp: number}>>([]);
-  
+  const [inspirationNotes, setInspirationNotes] = useState<Array<{ content: string, type: 'text' | 'voice', timestamp: number }>>([]);
+
   const { currentVoyage, distractionCount, endVoyage } = useVoyageStore();
-  const { showSuccess, showInfo } = useNotificationStore();
-  const { 
-    isDistracted, 
-    isMonitoring, 
-    handleDistractionResponse 
+  const { showSuccess } = useNotificationStore();
+  const {
+    isDistracted,
+    isMonitoring,
+    handleDistractionResponse
   } = useDistraction({ isExploring, currentDestination: destination });
-  const { 
-    isPlaying, 
-    volume, 
+  const {
+    isPlaying,
+    volume,
     isMuted,
-    startAmbientSound, 
-    stopAmbientSound, 
+    startAmbientSound,
+    stopAmbientSound,
     toggleMute,
-    adjustVolume, 
-    setWeatherMood: setAudioWeatherMood 
+    adjustVolume,
+    setWeatherMood: setAudioWeatherMood
   } = useAudio();
 
   const intervalRef = useRef<NodeJS.Timeout>();
@@ -56,19 +56,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     const timer = setTimeout(() => {
       startAmbientSound();
     }, 1000);
-    
+
     // Show seagull after 5 minutes for first-time interaction
     seagullTimerRef.current = setTimeout(() => {
       setShowSeagull(true);
     }, 300000); // 5 minutes
-    
-    // Show initial sailing notification
-    showInfo(
-      'Your voyage has begun! Stay focused on your destination.',
-      'Sailing Started',
-      { duration: 4000 }
-    );
-    
+
     return () => {
       clearTimeout(timer);
       stopAmbientSound();
@@ -76,7 +69,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         clearTimeout(seagullTimerRef.current);
       }
     };
-  }, [startAmbientSound, stopAmbientSound, showInfo]);
+  }, [startAmbientSound, stopAmbientSound]);
 
   // Timer effect
   useEffect(() => {
@@ -86,14 +79,14 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         const now = Date.now();
         const elapsed = Math.floor((now - startTime) / 1000);
         setElapsedTime(elapsed);
-        
-        // Show milestone notifications
-        if (elapsed === 600) { // 10 minutes
-          showSuccess('10 minutes of focused sailing!', 'Milestone Reached');
-        } else if (elapsed === 1200) { // 20 minutes
-          showSuccess('20 minutes of deep focus!', 'Great Progress');
-        } else if (elapsed === 1800) { // 30 minutes
-          showSuccess('30 minutes of sustained focus!', 'Excellent Work');
+
+        // Show milestone notifications only at significant intervals (every 30 minutes instead of 10)
+        if (elapsed === 1800 && !localStorage.getItem(`milestone-30-${currentVoyage.id}`)) { // 30 minutes
+          showSuccess('30 minutes of sustained focus!', 'Great Achievement');
+          localStorage.setItem(`milestone-30-${currentVoyage.id}`, 'true');
+        } else if (elapsed === 3600 && !localStorage.getItem(`milestone-60-${currentVoyage.id}`)) { // 1 hour
+          showSuccess('1 full hour of deep focus!', 'Excellent Work');
+          localStorage.setItem(`milestone-60-${currentVoyage.id}`, 'true');
         }
       }, 1000);
     }
@@ -132,14 +125,14 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           boatPosition.current.x = 10;
           boatPosition.current.y = 30 + Math.random() * 40;
         }
-        
+
         // Add to trail
         trail.current.push({
           x: (boatPosition.current.x / 100) * (window.innerWidth || 1000),
           y: (boatPosition.current.y / 100) * (window.innerHeight || 600),
           timestamp: Date.now()
         });
-        
+
         // Keep trail length manageable
         if (trail.current.length > 100) {
           trail.current = trail.current.slice(-100);
@@ -159,26 +152,15 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const handleDistractionChoice = async (choice: 'return_to_course' | 'exploring') => {
     await handleDistractionResponse(choice);
     setShowDistractionAlert(false);
-    
+
     if (choice === 'exploring') {
       setIsExploring(true);
       if (weatherMood !== 'cloudy') {
         setWeatherMood('cloudy');
         setAudioWeatherMood('cloudy');
       }
-      
-      showInfo(
-        'Exploration mode activated. Feel free to explore!',
-        'Exploring',
-        { duration: 3000 }
-      );
     } else {
       setIsExploring(false);
-      showSuccess(
-        'Back on course! Keep up the great focus.',
-        'Course Corrected',
-        { duration: 3000 }
-      );
     }
   };
 
@@ -188,11 +170,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       setWeatherMood('sunny');
       setAudioWeatherMood('sunny');
     }
-    
-    showSuccess(
-      'Welcome back! Resuming focused sailing.',
-      'Returned to Course'
-    );
   };
 
   const handleCaptureInspiration = (content: string, type: 'text' | 'voice') => {
@@ -202,10 +179,10 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       timestamp: Date.now()
     };
     setInspirationNotes(prev => [...prev, newNote]);
-    
+
     // Show seagull with encouraging message
     setShowSeagull(true);
-    
+
     showSuccess(
       `${type === 'voice' ? 'Voice note' : 'Text note'} captured successfully!`,
       'Inspiration Saved'
@@ -262,7 +239,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       {/* Trail */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none">
         <path
-          d={trail.current.length > 1 ? 
+          d={trail.current.length > 1 ?
             `M ${trail.current[0].x} ${trail.current[0].y} ` +
             trail.current.slice(1).map(point => `L ${point.x} ${point.y}`).join(' ')
             : ''
@@ -342,7 +319,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             variant="ghost"
             size="sm"
             className="text-white hover:bg-white/20"
-            title={isMuted ? 'Unmute audio' : 'Mute audio'}
           >
             {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </Button>
@@ -368,7 +344,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           >
             <Card className="p-6 w-80">
               <h3 className="font-semibold mb-4">Sailing Controls</h3>
-              
+
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium mb-3">
@@ -391,7 +367,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                     <span>Max</span>
                   </div>
                 </div>
-                
+
                 <div className="border-t pt-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
@@ -414,7 +390,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                     </div>
                   </div>
                 </div>
-                
+
                 {inspirationNotes.length > 0 && (
                   <div className="border-t pt-4">
                     <p className="text-sm font-medium mb-2">Recent Notes:</p>
@@ -427,7 +403,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                     </div>
                   </div>
                 )}
-                
+
                 <Button
                   onClick={handleEndVoyage}
                   variant="outline"
@@ -479,7 +455,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       </div>
 
       {/* Custom CSS for volume slider */}
-      <style jsx>{`
+      <style>{`
         .volume-slider {
           background: linear-gradient(to right, #3B82F6 0%, #3B82F6 ${(isMuted ? 0 : volume) * 100}%, #E5E7EB ${(isMuted ? 0 : volume) * 100}%, #E5E7EB 100%);
         }

@@ -10,7 +10,7 @@ interface UserState {
   error: string | null;
   isAuthenticated: boolean;
   authMode: 'demo' | 'supabase';
-  
+
   // Actions
   setUser: (user: User | null) => void;
   setLighthouseGoal: (goal: string) => void;
@@ -25,7 +25,7 @@ interface UserState {
 
 // Check if Supabase is configured
 const isSupabaseConfigured = !!(
-  import.meta.env.VITE_SUPABASE_URL && 
+  import.meta.env.VITE_SUPABASE_URL &&
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
@@ -38,7 +38,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   authMode: isSupabaseConfigured ? 'supabase' : 'demo',
 
   setUser: (user) => set({ user, isAuthenticated: !!user }),
-  
+
   setLighthouseGoal: (goal) => set({ lighthouseGoal: goal }),
 
   clearError: () => set({ error: null }),
@@ -50,18 +50,13 @@ export const useUserStore = create<UserState>((set, get) => ({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    
-    set({ 
-      user: demoUser, 
-      isAuthenticated: true, 
-      authMode: 'demo',
-      error: null 
-    });
 
-    useNotificationStore.getState().showInfo(
-      'You\'re now in demo mode. Your data won\'t be permanently saved.',
-      'Demo Mode Activated'
-    );
+    set({
+      user: demoUser,
+      isAuthenticated: true,
+      authMode: 'demo',
+      error: null
+    });
   },
 
   saveLighthouseGoal: async () => {
@@ -69,17 +64,13 @@ export const useUserStore = create<UserState>((set, get) => ({
     if (!user) return;
 
     set({ isLoading: true, error: null });
-    
+
     try {
       if (authMode === 'demo' || !isSupabaseConfigured) {
         // In demo mode, just store locally
         localStorage.setItem('demo-lighthouse-goal', lighthouseGoal);
         set({ isLoading: false });
-        
-        useNotificationStore.getState().showSuccess(
-          'Your lighthouse goal has been saved locally!',
-          'Goal Saved'
-        );
+
         return;
       }
 
@@ -92,16 +83,11 @@ export const useUserStore = create<UserState>((set, get) => ({
         });
 
       if (error) throw error;
-
-      useNotificationStore.getState().showSuccess(
-        'Your lighthouse goal has been saved to the database!',
-        'Goal Saved'
-      );
     } catch (error) {
       console.error('Failed to save lighthouse goal:', error);
       // Fallback to local storage
       localStorage.setItem('demo-lighthouse-goal', lighthouseGoal);
-      
+
       useNotificationStore.getState().showWarning(
         'Database unavailable. Goal saved locally instead.',
         'Fallback Save'
@@ -113,7 +99,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   signIn: async (email, password) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       // If Supabase is not configured, automatically enter demo mode
       if (!isSupabaseConfigured) {
@@ -138,10 +124,10 @@ export const useUserStore = create<UserState>((set, get) => ({
           throw new Error(`Sign in failed: ${error.message}`);
         }
       }
-      
+
       if (data.user) {
         set({ user: data.user as User, isAuthenticated: true, authMode: 'supabase' });
-        
+
         // Load user profile
         try {
           const { data: profile } = await supabase
@@ -149,7 +135,7 @@ export const useUserStore = create<UserState>((set, get) => ({
             .select('lighthouse_goal')
             .eq('id', data.user.id)
             .maybeSingle();
-          
+
           if (profile?.lighthouse_goal) {
             set({ lighthouseGoal: profile.lighthouse_goal });
           }
@@ -157,15 +143,10 @@ export const useUserStore = create<UserState>((set, get) => ({
           console.warn('Failed to load user profile:', profileError);
           // Don't fail the sign-in for this
         }
-
-        useNotificationStore.getState().showSuccess(
-          `Welcome back, ${data.user.email}!`,
-          'Sign In Successful'
-        );
       }
     } catch (error) {
       console.error('Sign in error:', error);
-      
+
       if (error instanceof Error) {
         set({ error: error.message });
       } else {
@@ -178,7 +159,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   signUp: async (email, password) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       // If Supabase is not configured, automatically enter demo mode
       if (!isSupabaseConfigured) {
@@ -206,35 +187,31 @@ export const useUserStore = create<UserState>((set, get) => ({
       if (error) {
         if (error.message.includes('User already registered')) {
           throw new Error('An account with this email already exists. Please sign in instead.');
-        } else if (error.message.includes('Password should be')) {
-          throw new Error('Password is too weak. Please choose a stronger password.');
         } else if (error.message.includes('Invalid email')) {
           throw new Error('Please enter a valid email address.');
+        } else if (error.message.includes('Password should be')) {
+          throw new Error('Password must be at least 6 characters long.');
         } else {
           throw new Error(`Sign up failed: ${error.message}`);
         }
       }
-      
+
       if (data.user) {
-        set({ user: data.user as User, isAuthenticated: true, authMode: 'supabase' });
-        
-        // If email confirmation is required, let user know
-        if (!data.session) {
+        // Only show notification if email confirmation is required
+        if (!data.user.email_confirmed_at) {
           useNotificationStore.getState().showInfo(
             'Please check your email and click the confirmation link to complete your account setup.',
-            'Email Confirmation Required',
-            { autoClose: false }
+            'Confirmation Email Sent',
+            { duration: 8000 }
           );
         } else {
-          useNotificationStore.getState().showSuccess(
-            `Account created successfully! Welcome, ${data.user.email}!`,
-            'Sign Up Successful'
-          );
+          // Auto sign-in successful
+          set({ user: data.user as User, isAuthenticated: true, authMode: 'supabase' });
         }
       }
     } catch (error) {
       console.error('Sign up error:', error);
-      
+
       if (error instanceof Error) {
         set({ error: error.message });
       } else {
@@ -247,21 +224,21 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   signOut: async () => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const { authMode } = get();
-      
+
       if (authMode === 'supabase' && isSupabaseConfigured) {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
       }
-      
+
       // Clear local storage
       localStorage.removeItem('demo-lighthouse-goal');
-      
-      set({ 
-        user: null, 
-        lighthouseGoal: '', 
+
+      set({
+        user: null,
+        lighthouseGoal: '',
         isAuthenticated: false,
         authMode: isSupabaseConfigured ? 'supabase' : 'demo'
       });
@@ -273,9 +250,9 @@ export const useUserStore = create<UserState>((set, get) => ({
     } catch (error) {
       console.error('Sign out error:', error);
       // Force sign out locally even if server call fails
-      set({ 
-        user: null, 
-        lighthouseGoal: '', 
+      set({
+        user: null,
+        lighthouseGoal: '',
         isAuthenticated: false,
         authMode: isSupabaseConfigured ? 'supabase' : 'demo',
         error: 'Sign out completed locally. You may need to clear your browser cache.'
@@ -292,7 +269,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   initialize: async () => {
     set({ isLoading: true, error: null });
-    
+
     try {
       // If Supabase is not configured, set demo mode and load local data
       if (!isSupabaseConfigured) {
@@ -306,20 +283,20 @@ export const useUserStore = create<UserState>((set, get) => ({
       }
 
       const { data: { session }, error } = await supabase.auth.getSession();
-      
+
       if (error) {
         console.error('Session error:', error);
         set({ error: 'Failed to restore session. Please sign in again.' });
         return;
       }
-      
+
       if (session?.user) {
-        set({ 
-          user: session.user as User, 
-          isAuthenticated: true, 
-          authMode: 'supabase' 
+        set({
+          user: session.user as User,
+          isAuthenticated: true,
+          authMode: 'supabase'
         });
-        
+
         // Load user profile
         try {
           const { data: profile } = await supabase
@@ -327,7 +304,7 @@ export const useUserStore = create<UserState>((set, get) => ({
             .select('lighthouse_goal')
             .eq('id', session.user.id)
             .maybeSingle();
-          
+
           if (profile?.lighthouse_goal) {
             set({ lighthouseGoal: profile.lighthouse_goal });
           }

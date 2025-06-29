@@ -18,21 +18,21 @@ import { setupDebugTool } from './utils/debugDistraction';
 type AppState = 'auth' | 'lighthouse' | 'destinations' | 'voyage-prep' | 'sailing' | 'voyage-complete' | 'map';
 
 function App() {
-  const { 
-    user, 
-    lighthouseGoal, 
-    initialize, 
+  const {
+    user,
+    lighthouseGoal,
+    initialize,
     debugDistractionFlow,
-    isLoading, 
-    isAuthenticated, 
+    isLoading,
+    isAuthenticated,
     authMode,
-    error: authError 
+    error: authError
   } = useUserStore();
-  
+
   const { destinations, loadDestinations } = useDestinationStore();
   const { currentVoyage, voyageHistory, startVoyage, endVoyage } = useVoyageStore();
-  const { showSuccess, showError, showInfo } = useNotificationStore();
-  
+  const { showSuccess, showError } = useNotificationStore();
+
   const [appState, setAppState] = useState<AppState>('auth');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [completedVoyageId, setCompletedVoyageId] = useState<string | null>(null);
@@ -44,7 +44,7 @@ function App() {
       await initialize();
       setInitializationComplete(true);
     };
-    
+
     initApp();
   }, [initialize]);
 
@@ -60,32 +60,26 @@ function App() {
     if (!initializationComplete) return;
 
     if (isAuthenticated && user) {
-      // Show welcome notification
-      if (authMode === 'demo') {
-        showInfo(
-          'You\'re in demo mode. Your progress won\'t be saved permanently.',
-          'Welcome to MindBoat!',
-          { duration: 6000 }
-        );
-      } else {
+      // Only show welcome notification for non-demo mode and don't repeat
+      if (authMode === 'supabase' && !localStorage.getItem('welcome-shown')) {
         showSuccess(
           `Welcome back, ${user.email}!`,
           'Successfully signed in'
         );
+        localStorage.setItem('welcome-shown', 'true');
       }
 
       // Load user data
       if (authMode === 'supabase') {
         loadDestinations(user.id);
       }
-      
+
       // Determine app state based on user progress and current voyage
       if (!lighthouseGoal) {
         setAppState('lighthouse');
       } else if (currentVoyage && appState !== 'sailing') {
         // If there's an active voyage and we're not already in sailing mode
         setAppState('sailing');
-        showInfo('Resuming your active voyage...', 'Welcome back');
       } else if (appState === 'auth') {
         // Only set to voyage-prep if we're coming from auth
         setAppState('voyage-prep');
@@ -95,7 +89,7 @@ function App() {
     }
   }, [isAuthenticated, user, lighthouseGoal, currentVoyage, authMode, initializationComplete]);
 
-  // Show auth errors as notifications
+  // Show auth errors as notifications (keep this as it's important)
   useEffect(() => {
     if (authError && initializationComplete) {
       showError(authError, 'Authentication Error');
@@ -130,8 +124,8 @@ function App() {
   };
 
   const handleLighthouseComplete = () => {
-    showSuccess('Your lighthouse goal has been set!', 'Goal Saved');
-    
+    // Remove success notification - completing the form is its own reward
+
     // Skip destinations if user already has some, go straight to voyage prep
     if (destinations.length > 0) {
       setAppState('voyage-prep');
@@ -141,25 +135,21 @@ function App() {
   };
 
   const handleDestinationsComplete = () => {
-    showSuccess('Ready to start your first voyage!', 'Destinations Created');
+    // Remove success notification - creating destinations is self-evident
     setAppState('voyage-prep');
   };
 
   const handleStartVoyage = async (destination: Destination, plannedDuration: number) => {
     if (!user) return;
-    
+
     setSelectedDestination(destination);
-    
+
     try {
       // Start the voyage in the store
       await startVoyage(destination.id, user.id, plannedDuration);
-      
-      showSuccess(
-        `Sailing to ${destination.destination_name}`,
-        'Voyage Started',
-        { duration: 3000 }
-      );
-      
+
+      // Remove verbose success notification - starting voyage is self-evident
+
       // Transition to sailing mode
       setAppState('sailing');
     } catch (error) {
@@ -175,16 +165,13 @@ function App() {
     if (currentVoyage && selectedDestination) {
       // Capture distraction count before ending voyage (since endVoyage resets store state)
       const { distractionCount } = useVoyageStore.getState();
-      
+
       try {
         // End the voyage in the store
         const updatedVoyage = await endVoyage();
-        
-        showSuccess(
-          'Your voyage has been completed successfully!',
-          'Voyage Complete'
-        );
-        
+
+        // Remove verbose success notification - voyage completion is self-evident
+
         // Set completed voyage data for the completion screen
         if (updatedVoyage) {
           setCompletedVoyageId(updatedVoyage.id);
@@ -192,16 +179,15 @@ function App() {
           // Fallback: use current voyage ID
           setCompletedVoyageId(currentVoyage.id);
         }
-        
+
         // Transition to voyage complete screen
         setAppState('voyage-complete');
       } catch (error) {
         console.error('Failed to end voyage:', error);
         showError(
-          'Failed to save your voyage progress.',
-          'Save Error'
+          'Failed to complete your voyage. Please try again.',
+          'Voyage Error'
         );
-        setAppState('voyage-prep');
       }
     }
   };
@@ -229,41 +215,41 @@ function App() {
       {appState === 'auth' && (
         <AuthForm onSuccess={handleAuthSuccess} />
       )}
-      
+
       {appState === 'lighthouse' && (
         <LighthouseGoal onComplete={handleLighthouseComplete} />
       )}
-      
+
       {appState === 'destinations' && (
         <CreateDestination onComplete={handleDestinationsComplete} />
       )}
-      
+
       {appState === 'voyage-prep' && (
-        <VoyagePreparation 
+        <VoyagePreparation
           onStartVoyage={handleStartVoyage}
           onViewMap={handleViewMap}
           onManageDestinations={handleManageDestinations}
         />
       )}
-      
+
       {appState === 'sailing' && selectedDestination && (
-        <SailingMode 
-          destination={selectedDestination} 
+        <SailingMode
+          destination={selectedDestination}
           onEndVoyage={handleEndVoyage}
         />
       )}
-      
+
       {appState === 'voyage-complete' && completedVoyageId && (
         <VoyageComplete
           voyageId={completedVoyageId}
           onContinue={handleVoyageCompleteNext}
         />
       )}
-      
+
       {appState === 'map' && (
         <GrandMap onBack={handleBackToPrep} />
       )}
-      
+
       {/* Global Notification System */}
       <NotificationSystem />
     </div>

@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Compass, Mic, Camera, FileText, ArrowLeft, Save, X } from 'lucide-react';
+import { Compass, Mic, FileText, ArrowLeft, Save, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { Input } from '../ui/Input';
 import { supabase } from '../../lib/supabase';
 import { useVoyageStore } from '../../stores/voyageStore';
 import { useNotificationStore } from '../../stores/notificationStore';
@@ -26,12 +25,12 @@ export const ExplorationMode: React.FC<ExplorationModeProps> = ({
   const [isSaving, setIsSaving] = useState(false);
 
   const { currentVoyage } = useVoyageStore();
-  const { showSuccess, showError } = useNotificationStore();
+  const { showError } = useNotificationStore();
 
   const handleCaptureInspiration = async () => {
     if (captureType === 'text' && textNote.trim()) {
       setIsSaving(true);
-      
+
       try {
         // Save to database if we have a current voyage
         if (currentVoyage && !currentVoyage.id.startsWith('local-')) {
@@ -45,15 +44,13 @@ export const ExplorationMode: React.FC<ExplorationModeProps> = ({
 
           if (error) {
             console.warn('Failed to save note to database:', error);
-            showError('Failed to save note to database, but keeping locally.', 'Save Warning');
-          } else {
-            showSuccess('Inspiration captured and saved!', 'Note Saved');
+            // Remove verbose warning - local save still works
           }
+          // Remove verbose success notifications - inspiration capture is self-evident
         } else {
-          // Local voyage or no database connection
-          showSuccess('Inspiration captured locally!', 'Note Saved');
+          // Local voyage or no database connection - no notification needed
         }
-        
+
         // Also call the parent callback for local handling
         onCaptureInspiration(textNote, 'text');
       } catch (error) {
@@ -64,7 +61,7 @@ export const ExplorationMode: React.FC<ExplorationModeProps> = ({
       } finally {
         setIsSaving(false);
       }
-      
+
       setTextNote('');
       setShowCapturePanel(false);
     }
@@ -74,11 +71,11 @@ export const ExplorationMode: React.FC<ExplorationModeProps> = ({
     if (!isRecording) {
       setIsRecording(true);
       setIsSaving(true);
-      
+
       // In a real implementation, this would start voice recording
       setTimeout(() => {
         setIsRecording(false);
-        
+
         // Save voice note (for now, just a placeholder)
         const saveVoiceNote = async () => {
           try {
@@ -93,14 +90,13 @@ export const ExplorationMode: React.FC<ExplorationModeProps> = ({
 
               if (error) {
                 console.warn('Failed to save voice note to database:', error);
-                showError('Failed to save voice note to database.', 'Save Warning');
-              } else {
-                showSuccess('Voice note captured and saved!', 'Voice Note Saved');
+                // Remove verbose warning - local save still works
               }
+              // Remove verbose success notifications - voice capture is self-evident
             } else {
-              showSuccess('Voice note captured locally!', 'Voice Note Saved');
+              // Local voyage - no notification needed
             }
-            
+
             onCaptureInspiration('Voice note captured', 'voice');
           } catch (error) {
             console.error('Error saving voice note:', error);
@@ -110,7 +106,7 @@ export const ExplorationMode: React.FC<ExplorationModeProps> = ({
             setIsSaving(false);
           }
         };
-        
+
         saveVoiceNote();
         setShowCapturePanel(false);
       }, 3000);
@@ -186,7 +182,9 @@ export const ExplorationMode: React.FC<ExplorationModeProps> = ({
                   variant="ghost"
                   size="sm"
                   icon={X}
-                />
+                >
+                  Close
+                </Button>
               </div>
 
               <div className="flex space-x-2 mb-4">
@@ -236,9 +234,8 @@ export const ExplorationMode: React.FC<ExplorationModeProps> = ({
                   >
                     <Button
                       onClick={handleVoiceCapture}
-                      className={`w-20 h-20 rounded-full ${
-                        isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-purple-600 hover:bg-purple-700'
-                      }`}
+                      className={`w-20 h-20 rounded-full ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-purple-600 hover:bg-purple-700'
+                        }`}
                       disabled={isRecording || isSaving}
                       loading={isSaving && !isRecording}
                     >
