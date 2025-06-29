@@ -340,63 +340,19 @@ export const useAdvancedDistraction = ({
     
     try {
       // Take screenshot
-      const screenshot = await ScreenshotService.captureScreen();
+      const screenshot = await ScreenshotService.captureScreenshot(cameraStream);
       if (!screenshot) {
         debugLog('COMBINED', 'No screenshot captured');
         return;
       }
 
-      // Capture camera frame if available
-      let cameraFrame = null;
-      if (cameraStream) {
-        try {
-          // Create canvas to capture current camera frame
-          const video = document.createElement('video');
-          video.srcObject = cameraStream;
-          video.play();
-          
-          // Wait for video to load
-          await new Promise((resolve) => {
-            video.onloadedmetadata = resolve;
-          });
-          
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          ctx?.drawImage(video, 0, 0);
-          cameraFrame = canvas.toDataURL('image/jpeg', 0.8);
-        } catch (error) {
-          debugLog('COMBINED', 'Camera frame capture failed', error);
-        }
-      }
-
-      // Perform combined analysis
-      const analysisPrompt = `Analyze this workspace for distraction. 
-Task: ${currentDestination?.destination_name || 'Focus work'}
-Screenshot: ${screenshot}
-${cameraFrame ? `Camera: ${cameraFrame}` : 'No camera feed'}
-
-Respond with JSON:
-{
-  "contentRelevant": boolean,
-  "userPresent": boolean,
-  "userFocused": boolean,
-  "distractionLevel": "none" | "low" | "medium" | "high",
-  "confidenceLevel": number,
-  "cameraAnalysis": {
-    "userPresent": boolean,
-    "appearsFocused": boolean,
-    "lookingAtScreen": boolean
-  },
-  "screenAnalysis": {
-    "contentType": string,
-    "isProductiveContent": boolean,
-    "hasDistractions": boolean
-  }
-}`;
-
-      const analysis = await GeminiService.analyzeContent(analysisPrompt);
+      // Perform analysis using the captured screenshot
+      const analysis = await GeminiService.analyzeScreenshot(
+        screenshot.blob,
+        user?.lighthouseGoal || 'Focus on work',
+        currentDestination?.destination_name || 'Focus task',
+        currentDestination?.related_apps || []
+      );</Action>
       
       if (analysis) {
         const currentTime = Date.now();

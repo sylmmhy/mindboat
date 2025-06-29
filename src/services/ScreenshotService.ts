@@ -72,7 +72,7 @@ export class ScreenshotService {
       if (!this.permissionGranted || !this.screenStream) {
         const hasPermission = await this.requestScreenPermission();
         if (!hasPermission) {
-          throw new Error('Screen capture permission required');
+          throw new Error('Screen capture permission denied or not available');
         }
       }
 
@@ -167,19 +167,6 @@ export class ScreenshotService {
     }
   }
 
-  /**
-   * Capture and analyze screenshot with AI
-   */
-  static async captureAndAnalyze(
-    userGoal: string,
-    currentTask: string,
-    relatedApps: string[],
-    cameraStream?: MediaStream
-  ): Promise<{
-    screenshot: ScreenshotData;
-    analysis: ScreenshotAnalysisResult;
-  }> {
-    const screenshot = await this.captureScreenshot(cameraStream);
     const analysis = await GeminiService.analyzeScreenshot(
       screenshot.blob,
       userGoal,
