@@ -54,10 +54,8 @@ export const useVoiceInteraction = ({
         setVoiceStatus(status);
 
         if (initialized && status.features.fullFeatures) {
-          showSuccess('Voice assistant ready with full features', 'AI Voice');
           console.log('🎤 [VOICE] ✅ Full voice features available');
         } else if (status.features.speechRecognition) {
-          showSuccess('Voice recognition ready (AI voice needs API key)', 'Voice Features');
           console.log('🎤 [VOICE] ⚠️ Speech recognition only - ElevenLabs API key needed for AI voice');
         } else {
           console.log('🎤 [VOICE] ❌ Voice features not available');
@@ -75,36 +73,47 @@ export const useVoiceInteraction = ({
 
   // Handle distraction alert with voice
   const handleVoiceDistractionAlert = useCallback(async (distractionType: string) => {
-    console.log('🎤 [VOICE] Distraction alert triggered:', {
+    console.log('🎤 [VOICE] 🚨 DISTRACTION ALERT TRIGGERED:', {
       distractionType,
       isVoiceEnabled,
       hasCallback: !!onDistractionResponse,
-      voiceStatus: voiceStatus.features
+      voiceStatus: voiceStatus.features,
+      isExploring
     });
 
-    if (!isVoiceEnabled || !onDistractionResponse) {
-      console.log('🎤 [VOICE] Voice alert skipped - not enabled or no callback');
+    if (!isVoiceEnabled || !onDistractionResponse || isExploring) {
+      console.log('🎤 [VOICE] ❌ Voice alert skipped:', {
+        voiceEnabled: isVoiceEnabled,
+        hasCallback: !!onDistractionResponse,
+        isExploring
+      });
       return false;
     }
 
     try {
       setIsSpeaking(true);
-      console.log('🎤 [VOICE] Starting voice distraction alert...');
+      console.log('🎤 [VOICE] 🔊 Starting voice distraction alert...');
       
-      await VoiceService.handleDistractionAlert(distractionType, (response) => {
-        console.log('🎤 [VOICE] Voice response received:', response);
-        onDistractionResponse(response);
-        setIsSpeaking(false);
+      // Use a Promise to handle the voice alert properly
+      return new Promise<boolean>((resolve) => {
+        VoiceService.handleDistractionAlert(distractionType, (response) => {
+          console.log('🎤 [VOICE] ✅ Voice response received:', response);
+          setIsSpeaking(false);
+          onDistractionResponse(response);
+          resolve(true);
+        }).catch((error) => {
+          console.error('🎤 [VOICE] ❌ Voice alert failed:', error);
+          setIsSpeaking(false);
+          resolve(false);
+        });
       });
 
-      console.log('🎤 [VOICE] ✅ Voice alert initiated successfully');
-      return true;
     } catch (error) {
-      console.error('🎤 [VOICE] Voice distraction alert failed:', error);
+      console.error('🎤 [VOICE] ❌ Voice distraction alert failed:', error);
       setIsSpeaking(false);
       return false;
     }
-  }, [isVoiceEnabled, onDistractionResponse, voiceStatus]);
+  }, [isVoiceEnabled, onDistractionResponse, voiceStatus, isExploring]);
 
   // Capture voice inspiration
   const captureVoiceInspiration = useCallback(async () => {

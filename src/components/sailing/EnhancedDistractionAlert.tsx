@@ -5,12 +5,12 @@
  * intelligent response handling and exploration mode support.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, ArrowLeft, Compass, Mic, Volume2, Loader2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { useVoiceInteraction } from '../../hooks/useVoiceInteraction';
+import { VoiceService } from '../../services/VoiceService';
 
 interface EnhancedDistractionAlertProps {
   isVisible: boolean;
@@ -31,64 +31,89 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
   const [voiceResponseReceived, setVoiceResponseReceived] = useState(false);
   const [showVoicePrompt, setShowVoicePrompt] = useState(false);
   const [voiceAlertTriggered, setVoiceAlertTriggered] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState(VoiceService.getStatus());
+  
+  const voiceAlertAttempted = useRef(false);
 
-  const {
-    isVoiceEnabled,
-    isSpeaking,
-    handleVoiceDistractionAlert,
-    voiceStatus
-  } = useVoiceInteraction({
-    isVoyageActive: true, // Always active when alert is shown
-    isExploring: false,
-    onDistractionResponse: (response) => {
-      console.log('🎤 [ALERT] Voice response received:', response);
-      setVoiceResponseReceived(true);
-      handleResponse(response);
-    }
-  });
+  // Update voice status
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVoiceStatus(VoiceService.getStatus());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Reset state when alert becomes visible
   useEffect(() => {
     if (isVisible) {
-      console.log('🚨 [ALERT] Distraction alert became visible:', {
+      console.log('🚨 [ALERT] 🎯 Distraction alert became visible:', {
         distractionType,
         enableVoice,
-        isVoiceEnabled,
-        voiceFeatures: voiceStatus.features
+        voiceFeatures: voiceStatus.features,
+        timestamp: new Date().toISOString()
       });
       
       setVoiceResponseReceived(false);
       setShowVoicePrompt(false);
       setVoiceAlertTriggered(false);
+      setIsSpeaking(false);
+      setIsListening(false);
+      voiceAlertAttempted.current = false;
+    } else {
+      // Clean up when alert is hidden
+      voiceAlertAttempted.current = false;
     }
-  }, [isVisible, distractionType, enableVoice, isVoiceEnabled, voiceStatus]);
+  }, [isVisible, distractionType, enableVoice, voiceStatus]);
 
   // Trigger voice alert when distraction becomes visible
   useEffect(() => {
-    if (isVisible && enableVoice && isVoiceEnabled && !voiceResponseReceived && !voiceAlertTriggered) {
-      console.log('🎤 [ALERT] Triggering voice alert for distraction:', distractionType);
+    if (isVisible && 
+        enableVoice && 
+        voiceStatus.features.speechRecognition && 
+        !voiceResponseReceived && 
+        !voiceAlertAttempted.current) {
+      
+      console.log('🎤 [ALERT] 🚨 TRIGGERING VOICE ALERT:', {
+        distractionType,
+        voiceFeatures: voiceStatus.features,
+        timestamp: new Date().toISOString()
+      });
+      
+      voiceAlertAttempted.current = true;
       
       const triggerVoiceAlert = async () => {
-        setVoiceAlertTriggered(true);
-        
         try {
-          const success = await handleVoiceDistractionAlert(distractionType);
-          console.log('🎤 [ALERT] Voice alert result:', success);
+          setVoiceAlertTriggered(true);
+          setIsSpeaking(true);
           
-          if (success) {
-            setShowVoicePrompt(true);
-          } else {
-            console.log('🎤 [ALERT] Voice alert failed, showing manual controls only');
-          }
+          console.log('🎤 [ALERT] 🔊 Starting voice distraction alert...');
+          
+          // Call VoiceService directly with proper error handling
+          await VoiceService.handleDistractionAlert(distractionType, (response) => {
+            console.log('🎤 [ALERT] ✅ Voice response received:', response);
+            setVoiceResponseReceived(true);
+            setIsListening(false);
+            setIsSpeaking(false);
+            handleResponse(response);
+          });
+          
+          console.log('🎤 [ALERT] ✅ Voice alert initiated successfully');
+          setShowVoicePrompt(true);
+          
         } catch (error) {
-          console.error('🎤 [ALERT] Voice alert error:', error);
+          console.error('🎤 [ALERT] ❌ Voice alert failed:', error);
+          setIsSpeaking(false);
+          setIsListening(false);
+          setShowVoicePrompt(false);
         }
       };
 
       // Small delay to ensure UI is ready
-      setTimeout(triggerVoiceAlert, 500);
+      setTimeout(triggerVoiceAlert, 1000);
     }
-  }, [isVisible, enableVoice, isVoiceEnabled, distractionType, handleVoiceDistractionAlert, voiceResponseReceived, voiceAlertTriggered]);
+  }, [isVisible, enableVoice, voiceStatus.features.speechRecognition, distractionType, voiceResponseReceived]);
 
   const getDistractionMessage = () => {
     switch (distractionType) {
@@ -125,8 +150,14 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
   };
 
   const handleResponse = (response: 'return_to_course' | 'exploring') => {
-    console.log('🚨 [ALERT] Manual response selected:', response);
+    console.log('🚨 [ALERT] ✅ Response selected:', response);
     setSelectedResponse(response);
+    
+    // Stop any ongoing voice activities
+    VoiceService.stopListening();
+    setIsListening(false);
+    setIsSpeaking(false);
+    
     setTimeout(() => {
       onResponse(response);
       setSelectedResponse(null);
@@ -183,7 +214,7 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
 
               {/* Voice Interaction Status */}
               <AnimatePresence>
-                {showVoicePrompt && isSpeaking && (
+                {isSpeaking && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -197,12 +228,15 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
                       >
                         <Volume2 className="w-5 h-5 text-blue-600" />
                       </motion.div>
-                      <span className="text-blue-800 text-sm">AI is speaking...</span>
+                      <span className="text-blue-800 text-sm font-medium">🤖 AI is speaking...</span>
                     </div>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Listen for the voice prompt, then respond
+                    </p>
                   </motion.div>
                 )}
 
-                {showVoicePrompt && !isSpeaking && isVoiceEnabled && (
+                {isListening && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -216,15 +250,43 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
                       >
                         <Mic className="w-5 h-5 text-green-600" />
                       </motion.div>
-                      <span className="text-green-800 text-sm font-medium">Listening for your response...</span>
+                      <span className="text-green-800 text-sm font-medium">🎤 Listening for your response...</span>
                     </div>
                     <p className="text-xs text-green-600">
-                      Say "I'm exploring" or "return to course"
+                      Say "I'm exploring" or "return to course" in English
                     </p>
                   </motion.div>
                 )}
 
-                {enableVoice && !isVoiceEnabled && voiceStatus.features.speechRecognition && (
+                {voiceAlertTriggered && !isSpeaking && !isListening && voiceStatus.features.speechRecognition && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200"
+                  >
+                    <div className="flex items-center justify-center space-x-2">
+                      <Mic className="w-5 h-5 text-purple-600" />
+                      <span className="text-purple-800 text-sm">🎤 Voice alert completed - use buttons below</span>
+                    </div>
+                  </motion.div>
+                )}
+
+                {enableVoice && !voiceStatus.features.speechRecognition && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-6 p-4 bg-red-50 rounded-lg border border-red-200"
+                  >
+                    <div className="flex items-center justify-center space-x-2">
+                      <Volume2 className="w-5 h-5 text-red-600" />
+                      <span className="text-red-800 text-sm">❌ Voice features not supported in this browser</span>
+                    </div>
+                  </motion.div>
+                )}
+
+                {enableVoice && voiceStatus.features.speechRecognition && !voiceStatus.features.elevenLabs && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -233,7 +295,7 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
                   >
                     <div className="flex items-center justify-center space-x-2">
                       <Volume2 className="w-5 h-5 text-yellow-600" />
-                      <span className="text-yellow-800 text-sm">Voice recognition available, but AI voice needs API key</span>
+                      <span className="text-yellow-800 text-sm">⚠️ Voice recognition available, but AI voice needs API key</span>
                     </div>
                   </motion.div>
                 )}
@@ -276,15 +338,15 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
                   Choose "I'm Exploring" to temporarily pause distraction detection
                 </p>
                 
-                {isVoiceEnabled && (
+                {voiceStatus.features.speechRecognition && (
                   <p className="text-xs text-blue-600">
-                    🎤 You can also respond with voice in English
+                    🎤 Voice interaction: Speak in English after the AI prompt
                   </p>
                 )}
                 
-                {!isVoiceEnabled && voiceStatus.features.speechRecognition && (
+                {!voiceStatus.features.elevenLabs && voiceStatus.features.speechRecognition && (
                   <p className="text-xs text-yellow-600">
-                    💡 Add ElevenLabs API key to enable AI voice responses
+                    💡 Add ElevenLabs API key to .env for AI voice responses
                   </p>
                 )}
 
@@ -298,12 +360,13 @@ export const EnhancedDistractionAlert: React.FC<EnhancedDistractionAlertProps> =
               {/* Debug info in development */}
               {import.meta.env.DEV && (
                 <div className="mt-4 p-2 bg-gray-100 rounded text-xs text-left">
-                  <p><strong>Debug Info:</strong></p>
-                  <p>Voice Enabled: {isVoiceEnabled ? '✅' : '❌'}</p>
+                  <p><strong>🔧 Debug Info:</strong></p>
                   <p>Speech Recognition: {voiceStatus.features.speechRecognition ? '✅' : '❌'}</p>
                   <p>ElevenLabs: {voiceStatus.features.elevenLabs ? '✅' : '❌'}</p>
                   <p>Alert Triggered: {voiceAlertTriggered ? '✅' : '❌'}</p>
                   <p>Speaking: {isSpeaking ? '✅' : '❌'}</p>
+                  <p>Listening: {isListening ? '✅' : '❌'}</p>
+                  <p>Attempted: {voiceAlertAttempted.current ? '✅' : '❌'}</p>
                 </div>
               )}
             </Card>

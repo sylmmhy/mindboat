@@ -272,25 +272,26 @@ export class VoiceService {
     onResponse: (response: 'return_to_course' | 'exploring') => void
   ): Promise<void> {
     try {
-      console.log('🎤 [VOICE SERVICE] Starting distraction alert for type:', distractionType);
+      console.log('🎤 [VOICE SERVICE] 🚨 Starting distraction alert for type:', distractionType);
       
       // Check if ElevenLabs is available for AI voice
       if (ElevenLabsService.isConfigured()) {
-        console.log('🎤 [VOICE SERVICE] Speaking distraction alert...');
+        console.log('🎤 [VOICE SERVICE] 🔊 Speaking distraction alert...');
         await ElevenLabsService.speakDistractionAlert(distractionType);
         console.log('🎤 [VOICE SERVICE] ✅ Distraction alert spoken');
       } else {
         console.log('🎤 [VOICE SERVICE] ⚠️ ElevenLabs not configured, skipping AI voice');
+        // Still proceed with speech recognition even without AI voice
       }
       
       // Wait a moment, then start listening for response
       setTimeout(async () => {
         try {
-          console.log('🎤 [VOICE SERVICE] Starting to listen for user response...');
+          console.log('🎤 [VOICE SERVICE] 🎤 Starting to listen for user response...');
           const result = await this.listen(15000); // 15 second timeout
           const analysis = this.analyzeDistractionResponse(result.transcript);
           
-          console.log('🎤 [VOICE SERVICE] Voice analysis result:', analysis);
+          console.log('🎤 [VOICE SERVICE] 🧠 Voice analysis result:', analysis);
           
           if (analysis.type === 'exploring') {
             if (ElevenLabsService.isConfigured()) {
@@ -313,13 +314,13 @@ export class VoiceService {
             onResponse('return_to_course');
           }
         } catch (error) {
-          console.warn('🎤 [VOICE SERVICE] Voice response not detected, defaulting to return to course:', error);
+          console.warn('🎤 [VOICE SERVICE] ⚠️ Voice response not detected, defaulting to return to course:', error);
           onResponse('return_to_course');
         }
-      }, 1000);
+      }, ElevenLabsService.isConfigured() ? 2000 : 500); // Wait longer if AI voice is speaking
       
     } catch (error) {
-      console.error('🎤 [VOICE SERVICE] Failed to handle distraction alert:', error);
+      console.error('🎤 [VOICE SERVICE] ❌ Failed to handle distraction alert:', error);
       // Fallback to non-voice interaction
       onResponse('return_to_course');
     }
