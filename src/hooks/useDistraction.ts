@@ -66,7 +66,7 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
     
     // List of productivity-related domains that should always be considered focused
     const productivityDomains = [
-      'notion.so', 'notion.site',
+      'notion.so', 'notion.site', 'bolt.new',
       'docs.google.com', 'drive.google.com', 'sheets.google.com', 'slides.google.com',
       'office.com', 'office365.com', 'onedrive.com', 'outlook.com',
       'zotero.org',
