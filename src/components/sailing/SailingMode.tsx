@@ -56,6 +56,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
   // Define callback functions BEFORE they are used in hooks
   const handleDistractionChoice = useCallback(async (choice: 'return_to_course' | 'exploring') => {
+    console.log('🚨 [SAILING] Handling distraction choice:', choice);
     setShowDistractionAlert(false);
 
     if (choice === 'exploring') {
@@ -89,8 +90,8 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     setShowSeagull(true);
 
     showSuccess(
-      `${type === 'voice' ? '语音笔记' : '文字笔记'}已成功记录！`,
-      '灵感已保存'
+      `${type === 'voice' ? 'Voice note' : 'Text note'} captured successfully!`,
+      'Inspiration Saved'
     );
   }, [showSuccess]);
 
@@ -174,12 +175,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         
         // 30-minute milestone
         if (elapsedSeconds === 1800 && !localStorage.getItem(`milestone-30-${currentVoyage.id}`)) {
-          showSuccess('30分钟的持续专注！', '出色成就');
+          showSuccess('30 minutes of sustained focus!', 'Great Achievement');
           localStorage.setItem(`milestone-30-${currentVoyage.id}`, 'true');
         }
         // 1-hour milestone  
         else if (elapsedSeconds === 3600 && !localStorage.getItem(`milestone-60-${currentVoyage.id}`)) {
-          showSuccess('整整1小时的深度专注！', '卓越表现');
+          showSuccess('1 full hour of deep focus!', 'Excellent Work');
           localStorage.setItem(`milestone-60-${currentVoyage.id}`, 'true');
         }
       }, 100); // Update every 100ms for smooth display
@@ -196,20 +197,32 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
   // Enhanced distraction alert effect with voice integration
   useEffect(() => {
+    console.log('🚨 [SAILING] Distraction state changed:', {
+      isDistracted,
+      isExploring,
+      showDistractionAlert,
+      distractionType,
+      isVoiceEnabled
+    });
+
     if (isDistracted && !isExploring) {
+      console.log('🚨 [SAILING] ⚠️ SHOWING DISTRACTION ALERT');
       setShowDistractionAlert(true);
+      
       if (weatherMood !== 'stormy') {
         setWeatherMood('stormy');
         setAudioWeatherMood('stormy');
       }
     } else if (!isExploring) {
+      console.log('🚨 [SAILING] ✅ Clearing distraction alert');
       setShowDistractionAlert(false);
+      
       if (weatherMood !== 'sunny') {
         setWeatherMood('sunny');
         setAudioWeatherMood('sunny');
       }
     }
-  }, [isDistracted, isExploring, weatherMood, setAudioWeatherMood]);
+  }, [isDistracted, isExploring, weatherMood, setAudioWeatherMood, distractionType, isVoiceEnabled]);
 
   // Boat animation effect
   useEffect(() => {
@@ -253,6 +266,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
   // Update handleDistractionChoice to use handleDistractionResponse
   const handleDistractionChoiceWithResponse = useCallback(async (choice: 'return_to_course' | 'exploring') => {
+    console.log('🚨 [SAILING] Handling distraction choice with response:', choice);
     await handleDistractionResponse(choice);
     await handleDistractionChoice(choice);
   }, [handleDistractionResponse, handleDistractionChoice]);
@@ -369,29 +383,35 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             <span className="text-white font-mono text-lg">{formatTime(elapsedTime)}</span>
           </div>
           <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
-            <span className="text-white text-sm">分心次数: {distractionCount}</span>
+            <span className="text-white text-sm">Distractions: {distractionCount}</span>
           </div>
           <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
             <span className="text-white text-sm">{getWeatherEmoji()} {weatherMood}</span>
           </div>
           {isExploring && (
             <div className="bg-purple-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-              <span className="text-white text-sm">🧭 探索中</span>
+              <span className="text-white text-sm">🧭 Exploring</span>
             </div>
           )}
           {inspirationNotes.length > 0 && (
             <div className="bg-green-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-              <span className="text-white text-sm">💡 {inspirationNotes.length} 条笔记</span>
+              <span className="text-white text-sm">💡 {inspirationNotes.length} notes</span>
             </div>
           )}
           {cameraPermissionGranted && (
             <div className="bg-green-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-              <span className="text-white text-sm">📷 AI监控</span>
+              <span className="text-white text-sm">📷 AI Monitoring</span>
             </div>
           )}
           {isVoiceEnabled && (
             <div className="bg-blue-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-              <span className="text-white text-sm">🎤 语音助手</span>
+              <span className="text-white text-sm">🎤 Voice Assistant</span>
+            </div>
+          )}
+          {/* Show distraction alert status for debugging */}
+          {import.meta.env.DEV && showDistractionAlert && (
+            <div className="bg-red-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
+              <span className="text-white text-sm">🚨 ALERT ACTIVE</span>
             </div>
           )}
         </div>
@@ -447,12 +467,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
             className="absolute top-16 right-4 z-20"
           >
             <Card className="p-6 w-80 max-h-96 overflow-y-auto">
-              <h3 className="font-semibold mb-4">航行控制</h3>
+              <h3 className="font-semibold mb-4">Sailing Controls</h3>
 
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium mb-3">
-                    环境音量: {isMuted ? '静音' : `${Math.round(volume * 100)}%`}
+                    Ambient Volume: {isMuted ? 'Muted' : `${Math.round(volume * 100)}%`}
                   </label>
                   <div className="relative">
                     <input
@@ -466,52 +486,58 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                     />
                   </div>
                   <div className="flex justify-between text-xs text-gray-500 mt-2">
-                    <span>静音</span>
-                    <span>最大</span>
+                    <span>Mute</span>
+                    <span>Max</span>
                   </div>
                 </div>
 
                 <div className="border-t pt-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="font-medium text-gray-700">音频:</span>
+                      <span className="font-medium text-gray-700">Audio:</span>
                       <span className={`ml-2 ${isPlaying ? 'text-green-600' : 'text-red-600'}`}>
-                        {isPlaying ? (isMuted ? '静音' : '播放中') : '已停止'}
+                        {isPlaying ? (isMuted ? 'Muted' : 'Playing') : 'Stopped'}
                       </span>
                     </div>
                     <div>
-                      <span className="font-medium text-gray-700">监控:</span>
+                      <span className="font-medium text-gray-700">Monitoring:</span>
                       <span className={`ml-2 ${isMonitoring ? 'text-green-600' : 'text-gray-500'}`}>
-                        {isMonitoring ? '活跃' : '非活跃'}
+                        {isMonitoring ? 'Active' : 'Inactive'}
                       </span>
                     </div>
                     <div className="col-span-2">
-                      <span className="font-medium text-gray-700">模式:</span>
+                      <span className="font-medium text-gray-700">Mode:</span>
                       <span className={`ml-2 ${isExploring ? 'text-purple-600' : 'text-blue-600'}`}>
-                        {isExploring ? '探索' : '专注'}
+                        {isExploring ? 'Exploration' : 'Focus'}
                       </span>
                     </div>
                     
                     {/* Voice status */}
                     <div className="col-span-2 border-t pt-2">
-                      <p className="text-sm font-medium text-gray-700 mb-2">语音助手状态:</p>
+                      <p className="text-sm font-medium text-gray-700 mb-2">Voice Assistant Status:</p>
                       <div className="text-xs space-y-1">
                         <div className="flex justify-between">
-                          <span>语音识别:</span>
+                          <span>Speech Recognition:</span>
                           <span className={voiceStatus.features.speechRecognition ? 'text-green-600' : 'text-gray-500'}>
-                            {voiceStatus.features.speechRecognition ? '可用' : '不可用'}
+                            {voiceStatus.features.speechRecognition ? 'Available' : 'Not available'}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>AI语音:</span>
+                          <span>AI Voice:</span>
                           <span className={voiceStatus.features.elevenLabs ? 'text-green-600' : 'text-gray-500'}>
-                            {voiceStatus.features.elevenLabs ? '可用' : '不可用'}
+                            {voiceStatus.features.elevenLabs ? 'Available' : 'Not available'}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>状态:</span>
+                          <span>Status:</span>
                           <span className={isListening ? 'text-blue-600' : isSpeaking ? 'text-green-600' : 'text-gray-500'}>
-                            {isListening ? '聆听中' : isSpeaking ? '说话中' : '待机'}
+                            {isListening ? 'Listening' : isSpeaking ? 'Speaking' : 'Standby'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Alert Active:</span>
+                          <span className={showDistractionAlert ? 'text-red-600' : 'text-gray-500'}>
+                            {showDistractionAlert ? 'YES' : 'No'}
                           </span>
                         </div>
                       </div>
@@ -521,7 +547,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
 
                 {inspirationNotes.length > 0 && (
                   <div className="border-t pt-4">
-                    <p className="text-sm font-medium mb-2">最近笔记:</p>
+                    <p className="text-sm font-medium mb-2">Recent Notes:</p>
                     <div className="max-h-16 overflow-y-auto text-xs text-gray-600 space-y-1">
                       {inspirationNotes.slice(-3).map((note, index) => (
                         <div key={index} className="p-2 bg-gray-50 rounded">
@@ -540,7 +566,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                     className="w-full"
                     icon={ArrowLeft}
                   >
-                    结束航行
+                    End Voyage
                   </Button>
                 </div>
               </div>
@@ -549,7 +575,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         )}
       </AnimatePresence>
 
-      {/* Enhanced Distraction Alert with Voice */}
+      {/* Enhanced Distraction Alert with Voice - THIS IS THE KEY COMPONENT */}
       <EnhancedDistractionAlert
         isVisible={showDistractionAlert}
         onResponse={handleDistractionChoiceWithResponse}
@@ -577,19 +603,24 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       <div className="absolute bottom-4 left-4 right-4 z-10">
         <div className="bg-white/20 backdrop-blur-sm rounded-lg px-6 py-3">
           <p className="text-white text-center">
-            航行至 <strong>{destination.destination_name}</strong>
+            Sailing to <strong>{destination.destination_name}</strong>
           </p>
           <p className="text-white/80 text-sm text-center mt-1">
             {destination.description}
           </p>
           {isVoiceEnabled && (
             <p className="text-blue-200 text-xs text-center mt-2">
-              🎤 语音助手已就绪 - 可语音交互
+              🎤 Voice assistant ready - voice interaction available
             </p>
           )}
           {!voiceStatus.features.elevenLabs && voiceStatus.features.speechRecognition && (
             <p className="text-yellow-300 text-xs text-center mt-2">
-              💡 添加 ElevenLabs API 密钥以启用AI语音
+              💡 Add ElevenLabs API key for AI voice responses
+            </p>
+          )}
+          {import.meta.env.DEV && (
+            <p className="text-green-200 text-xs text-center mt-2">
+              🔧 DEV: Alert={showDistractionAlert ? 'ON' : 'OFF'} | Distracted={isDistracted ? 'YES' : 'NO'} | Voice={isVoiceEnabled ? 'ON' : 'OFF'}
             </p>
           )}
         </div>
