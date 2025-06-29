@@ -167,6 +167,9 @@ export class ScreenshotService {
     }
   }
 
+  static async captureAndAnalyze(userGoal: string, currentTask: string, relatedApps: string[]): Promise<{ screenshot: ScreenshotData, analysis: ScreenshotAnalysisResult }> {
+    const screenshot = await this.captureScreenshot();
+
     const analysis = await GeminiService.analyzeScreenshot(
       screenshot.blob,
       userGoal,
