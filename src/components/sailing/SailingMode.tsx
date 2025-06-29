@@ -355,6 +355,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
               <span className="text-white text-sm">📷 AI Monitoring</span>
             </div>
           )}
+          {/* Show screen sharing status */}
+          <div className="bg-blue-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
+            <span className="text-white text-sm">
+              🖥️ {diagnostics.screenSharingAvailable ? 'Screen Analysis' : 'Basic Mode'}
+            </span>
+          </div>
           {diagnostics.geminiConfigured && (
             <div className="bg-blue-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
               <span className="text-white text-sm">🤖 Gemini Ready</span>
@@ -455,6 +461,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                           </span>
                         </div>
                         <div className="flex justify-between">
+                          <span>Screen Sharing:</span>
+                          <span className={diagnostics.screenSharingAvailable ? 'text-green-600' : 'text-gray-500'}>
+                            {diagnostics.screenSharingAvailable ? 'Active' : 'Not available'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
                           <span>Combined Analysis:</span>
                           <span className={diagnostics.combined?.isActive ? 'text-green-600' : 'text-gray-500'}>
                             {diagnostics.combined?.isActive ? 'Active (60s)' : 'Inactive'}
@@ -504,9 +516,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                       <p>🔍 Active Detection Systems:</p>
                       <p>• Tab switch detection (instant)</p>
                       <p>• URL blacklist monitoring (15s timeout for testing)</p>
-                      <p>• Combined screenshot + camera analysis (60s interval)</p>
+                      <p>• Combined screenshot + camera analysis (60s interval) {diagnostics.screenSharingAvailable ? '✅' : '❌'}</p>
                       <p>• Idle detection (90s timeout)</p>
                       <p>• Debouncing: 5s minimum between distractions</p>
+                      {!diagnostics.screenSharingAvailable && (
+                        <p className="text-yellow-400 mt-1">💡 Grant screen sharing permission for advanced monitoring</p>
+                      )}
                     </div>
                   </div>
                 </div>

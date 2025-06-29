@@ -685,8 +685,22 @@ export const useAdvancedDistraction = ({
     exploring: isExploring,
     // Add missing properties that SailingMode.tsx expects
     geminiConfigured: GeminiService.isConfigured(),
-    cameraAvailable: !!cameraStream
+    cameraAvailable: !!cameraStream,
+    screenSharingAvailable: false // Will be set dynamically
   };
+
+  // Dynamically check screen sharing availability
+  React.useEffect(() => {
+    const checkScreenSharing = async () => {
+      try {
+        const { ScreenshotService } = await import('../services/ScreenshotService');
+        diagnostics.screenSharingAvailable = ScreenshotService.isPermissionGranted();
+      } catch (error) {
+        diagnostics.screenSharingAvailable = false;
+      }
+    };
+    checkScreenSharing();
+  }, []);
 
   return {
     isDistracted,
