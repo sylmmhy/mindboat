@@ -12,6 +12,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useVoyageStore } from '../stores/voyageStore';
+import { useUserStore } from '../stores/userStore';
 import { GeminiService } from '../services/GeminiService';
 import { ScreenshotService } from '../services/ScreenshotService';
 import { 
@@ -61,6 +62,7 @@ export const useAdvancedDistraction = ({
   
   // Get voyage store functions
   const { isVoyageActive, recordDistraction } = useVoyageStore();
+  const { user } = useUserStore();
 
   // Tab switching detection state
   const [tabSwitchState, setTabSwitchState] = useState<TabSwitchDetectionState>({
@@ -352,7 +354,7 @@ export const useAdvancedDistraction = ({
         user?.lighthouseGoal || 'Focus on work',
         currentDestination?.destination_name || 'Focus task',
         currentDestination?.related_apps || []
-      );</Action>
+      );
       
       if (analysis) {
         const currentTime = Date.now();
