@@ -295,12 +295,6 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
   const handleActivity = useCallback(() => {
     if (!shouldMonitor) return;
     
-    debugLog('🎯 [ACTIVITY] User activity detected', {
-      type: 'mouse/keyboard',
-      currentUrl: window.location.href,
-      tabVisible: !document.hidden
-    });
-    
     lastActivityTime.current = Date.now();
     
     // Check URL on activity to catch any navigation
