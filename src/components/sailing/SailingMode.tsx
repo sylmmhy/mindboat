@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Anchor, Volume2, VolumeX, Settings, ArrowLeft, Compass } from 'lucide-react';
 import { Button } from '../ui/Button';
