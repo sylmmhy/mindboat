@@ -7,6 +7,7 @@ import { Input } from '../ui/Input';
 import { useDestinationStore } from '../../stores/destinationStore';
 import { useDistraction } from '../../hooks/useDistraction';
 import { useUserStore } from '../../stores/userStore';
+import { ScreenshotService } from '../../services/ScreenshotService';
 import type { Destination } from '../../types';
 
 interface VoyagePreparationProps {
@@ -26,6 +27,7 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({
   const [showAddDestination, setShowAddDestination] = useState(false);
   const [newTask, setNewTask] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [isRequestingPermissions, setIsRequestingPermissions] = useState(false);
   
   const { destinations, createDestination, isLoading } = useDestinationStore();
   const { user } = useUserStore();
@@ -37,7 +39,25 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({
   };
 
   const handleRequestPermissions = async () => {
-    await requestPermissions();
+    setIsRequestingPermissions(true);
+    
+    try {
+      // Request camera and microphone permissions
+      await requestPermissions();
+      
+      // Also request screen sharing permission for advanced monitoring
+      const screenPermissionGranted = await ScreenshotService.requestScreenPermission();
+      
+      if (screenPermissionGranted) {
+        console.log('Screen sharing permission granted for advanced monitoring');
+      } else {
+        console.warn('Screen sharing permission denied - will use basic monitoring only');
+      }
+    } catch (error) {
+      console.error('Error requesting permissions:', error);
+    } finally {
+      setIsRequestingPermissions(false);
+    }
   };
 
   const handleStartSailing = () => {
@@ -148,20 +168,28 @@ export const VoyagePreparation: React.FC<VoyagePreparationProps> = ({
                     description="Detect when switching to other apps"
                     granted={true} // Always available
                   />
+                  <PermissionItem
+                    icon={Monitor}
+                    title="Screen Sharing"
+                    description="Advanced content analysis for better distraction detection"
+                    granted={ScreenshotService.isPermissionGranted()}
+                  />
                 </div>
 
-                {!permissionsGranted.camera && !permissionsGranted.microphone && (
+                {(!permissionsGranted.camera || !permissionsGranted.microphone || !ScreenshotService.isPermissionGranted()) && (
                   <Button
                     onClick={handleRequestPermissions}
+                    loading={isRequestingPermissions}
                     className="w-full mt-4"
                     variant="outline"
                   >
-                    Request Permissions (Optional)
+                    {isRequestingPermissions ? 'Requesting Permissions...' : 'Request Advanced Permissions (Optional)'}
                   </Button>
                 )}
                 
                 <p className="text-xs text-gray-500 mt-2">
-                  Permissions are optional. Basic distraction detection works without them.
+                  All permissions are optional. Basic distraction detection works without them.
+                  Screen sharing enables advanced content analysis for better distraction detection.
                 </p>
               </div>
             </div>

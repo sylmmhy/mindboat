@@ -52,7 +52,12 @@ export interface DailyReflection {
 }
 
 export interface DistractionDetectionEvent {
-  type: 'tab_switch' | 'idle' | 'camera_distraction';
+  type: 'tab_switch' | 'window_switch' | 'new_tab_opened' | 'tab_closed' |
+        'social_media' | 'entertainment' | 'shopping' | 'news_browsing' | 'irrelevant_browsing' |
+        'camera_absence' | 'looking_away' | 'phone_usage' | 'eating_drinking' | 'conversation' |
+        'idle' | 'extended_break' | 'task_switching' |
+        'notification_popup' | 'external_interruption' |
+        'camera_distraction' | 'blacklisted_content'; // Legacy types
   timestamp: number;
   duration?: number;
 }
