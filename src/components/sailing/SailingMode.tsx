@@ -46,6 +46,55 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const endVoyage = useVoyageStore(state => state.endVoyage);
   
   const { showSuccess } = useNotificationStore();
+
+  // High-precision timer
+  const timerRef = useRef<ReturnType<typeof createPrecisionInterval>>();
+  const startTimeRef = useRef<number>(0);
+  const boatPosition = useRef({ x: 50, y: 50 });
+  const trail = useRef<Array<{ x: number; y: number; timestamp: number }>>([]);
+  const seagullTimerRef = useRef<NodeJS.Timeout>();
+
+  // Define callback functions BEFORE they are used in hooks
+  const handleDistractionChoice = useCallback(async (choice: 'return_to_course' | 'exploring') => {
+    setShowDistractionAlert(false);
+
+    if (choice === 'exploring') {
+      setIsExploring(true);
+      if (weatherMood !== 'cloudy') {
+        setWeatherMood('cloudy');
+        setAudioWeatherMood('cloudy');
+      }
+    } else {
+      setIsExploring(false);
+    }
+  }, [weatherMood]);
+
+  const handleReturnToCourse = useCallback(() => {
+    setIsExploring(false);
+    if (weatherMood !== 'sunny') {
+      setWeatherMood('sunny');
+      setAudioWeatherMood('sunny');
+    }
+  }, [weatherMood]);
+
+  const handleCaptureInspiration = useCallback((content: string, type: 'text' | 'voice') => {
+    const newNote = {
+      content,
+      type,
+      timestamp: getHighPrecisionTime()
+    };
+    setInspirationNotes(prev => [...prev, newNote]);
+
+    // Show seagull with encouraging message
+    setShowSeagull(true);
+
+    showSuccess(
+      `${type === 'voice' ? '语音笔记' : '文字笔记'}已成功记录！`,
+      '灵感已保存'
+    );
+  }, [showSuccess]);
+
+  // Now initialize hooks that depend on the callback functions
   const {
     isDistracted,
     distractionType,
@@ -59,6 +108,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     currentDestination: destination,
     cameraStream 
   });
+
   const {
     isPlaying,
     volume,
@@ -85,13 +135,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     onDistractionResponse: handleDistractionChoice,
     onInspirationCaptured: handleCaptureInspiration
   });
-
-  // High-precision timer
-  const timerRef = useRef<ReturnType<typeof createPrecisionInterval>>();
-  const startTimeRef = useRef<number>(0);
-  const boatPosition = useRef({ x: 50, y: 50 });
-  const trail = useRef<Array<{ x: number; y: number; timestamp: number }>>([]);
-  const seagullTimerRef = useRef<NodeJS.Timeout>();
 
   // Initialize services and start monitoring
   useEffect(() => {
@@ -208,45 +251,11 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     onEndVoyage();
   }, [endVoyage, onEndVoyage, isVoiceEnabled, destination, elapsedTime, announceVoyageCompletion]);
 
-  const handleDistractionChoice = useCallback(async (choice: 'return_to_course' | 'exploring') => {
+  // Update handleDistractionChoice to use handleDistractionResponse
+  const handleDistractionChoiceWithResponse = useCallback(async (choice: 'return_to_course' | 'exploring') => {
     await handleDistractionResponse(choice);
-    setShowDistractionAlert(false);
-
-    if (choice === 'exploring') {
-      setIsExploring(true);
-      if (weatherMood !== 'cloudy') {
-        setWeatherMood('cloudy');
-        setAudioWeatherMood('cloudy');
-      }
-    } else {
-      setIsExploring(false);
-    }
-  }, [handleDistractionResponse, weatherMood, setAudioWeatherMood]);
-
-  const handleReturnToCourse = useCallback(() => {
-    setIsExploring(false);
-    if (weatherMood !== 'sunny') {
-      setWeatherMood('sunny');
-      setAudioWeatherMood('sunny');
-    }
-  }, [weatherMood, setAudioWeatherMood]);
-
-  const handleCaptureInspiration = useCallback((content: string, type: 'text' | 'voice') => {
-    const newNote = {
-      content,
-      type,
-      timestamp: getHighPrecisionTime()
-    };
-    setInspirationNotes(prev => [...prev, newNote]);
-
-    // Show seagull with encouraging message
-    setShowSeagull(true);
-
-    showSuccess(
-      `${type === 'voice' ? '语音笔记' : '文字笔记'}已成功记录！`,
-      '灵感已保存'
-    );
-  }, [showSuccess]);
+    await handleDistractionChoice(choice);
+  }, [handleDistractionResponse, handleDistractionChoice]);
 
   // Handle camera stream changes
   const handleCameraStream = useCallback((stream: MediaStream | null) => {
@@ -543,7 +552,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       {/* Enhanced Distraction Alert with Voice */}
       <EnhancedDistractionAlert
         isVisible={showDistractionAlert}
-        onResponse={handleDistractionChoice}
+        onResponse={handleDistractionChoiceWithResponse}
         distractionType={distractionType || 'tab_switch'}
         duration={elapsedTime}
         enableVoice={isVoiceEnabled}
