@@ -196,18 +196,24 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
   const handleVisibilityChange = useCallback(() => {
     if (!shouldMonitor) return;
     
-    debugLog('Visibility change', { hidden: document.hidden });
+    const isHidden = document.hidden;
+    debugLog('👁️ [TAB SWITCH] Visibility change detected', { 
+      hidden: isHidden,
+      timestamp: new Date().toISOString(),
+      voyageActive: isVoyageActive,
+      exploring: isExploring
+    });
     
-    if (document.hidden) {
+    if (isHidden) {
       // Tab became hidden - user switched away
-      debugLog('Tab became hidden, starting distraction timer');
+      debugLog('🚨 [TAB SWITCH] User switched away from tab - starting distraction timer');
       distractionStartTime.current = Date.now();
       setLastDistractionType('tab_switch');
       
       // Set timeout to 5 seconds for detection
       distractionTimeoutRef.current = setTimeout(() => {
         if (!isDistractedRef.current) {
-          debugLog('Tab switch distraction triggered after timeout');
+          debugLog('⚠️ [TAB SWITCH] Distraction triggered after 5 second timeout');
           setIsDistracted(true);
           // Record the start of distraction immediately
           recordDistraction({
@@ -218,11 +224,13 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
       }, 5000);
     } else {
       // Tab became visible - user returned
-      debugLog('Tab became visible');
+      debugLog('✅ [TAB SWITCH] User returned to tab');
       
       if (distractionTimeoutRef.current) {
         clearTimeout(distractionTimeoutRef.current);
-        debugLog('Cleared distraction timeout');
+        debugLog('🔄 [TAB SWITCH] Cleared distraction timeout - user returned quickly');
+      } else {
+        debugLog('🔄 [TAB SWITCH] No timeout to clear - distraction may have already been triggered');
       }
       
       // If there was an active distraction, record its completion
@@ -231,7 +239,10 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
         
         // Only record if the distraction lasted more than 3 seconds to avoid false positives
         if (duration >= 3) {
-          debugLog('Recording completed distraction', { duration });
+          debugLog('📝 [TAB SWITCH] Recording completed distraction', { 
+            duration: `${duration} seconds`,
+            wasAlreadyTriggered: isDistractedRef.current 
+          });
           
           // If distraction was already recorded (via timeout), update it with duration
           if (isDistractedRef.current) {
@@ -249,12 +260,14 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
               duration,
             });
           }
+        } else {
+          debugLog('⏱️ [TAB SWITCH] Distraction too short to record', { duration: `${duration} seconds` });
         }
       }
       
       // Clear distraction state when returning to tab
       if (isDistractedRef.current) {
-        debugLog('Clearing distraction on tab return');
+        debugLog('🧹 [TAB SWITCH] Clearing distraction state on tab return');
         setIsDistracted(false);
       }
       distractionStartTime.current = undefined;
@@ -262,7 +275,7 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
       
       // Check URL when returning to tab (in case user navigated while away)
       setTimeout(() => {
-        debugLog('Performing URL check after tab return');
+        debugLog('🔍 [TAB SWITCH] Performing URL check after tab return');
         checkUrlChange();
       }, 100);
     }
@@ -314,10 +327,16 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
 
   // Enhanced distraction detection with multiple methods
   useEffect(() => {
-    debugLog('Distraction monitoring effect', { shouldMonitor, isExploring, isVoyageActive });
+    debugLog('🎯 [DISTRACTION] Monitoring effect triggered', { 
+      shouldMonitor, 
+      isExploring, 
+      isVoyageActive,
+      destination: currentDestination?.destination_name 
+    });
     
     if (!shouldMonitor) {
       // Clear any active distractions when monitoring stops
+      debugLog('🛑 [DISTRACTION] Stopping monitoring - clearing active distractions');
       setIsDistracted(false);
       if (distractionTimeoutRef.current) {
         clearTimeout(distractionTimeoutRef.current);
@@ -332,7 +351,7 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
     lastActivityTime.current = Date.now();
     lastUrlRef.current = window.location.href;
     
-    debugLog('Initializing distraction monitoring', {
+    debugLog('🚀 [DISTRACTION] Initializing monitoring', {
       initialUrl: lastUrlRef.current,
       currentDestination: currentDestination?.destination_name,
       relatedApps: currentDestination?.related_apps
@@ -340,11 +359,11 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
     
     // Initial URL check
     setTimeout(() => {
-      debugLog('Performing initial URL check');
+      debugLog('🔍 [DISTRACTION] Performing initial URL check');
       checkUrlChange();
     }, 100);
     
-    // Event listeners
+    // Event listeners for tab switching and activity
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('mousemove', handleActivity);
     document.addEventListener('keydown', handleActivity);
@@ -354,7 +373,7 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
     // Monitor URL changes using both popstate and a periodic check
     window.addEventListener('popstate', checkUrlChange);
     const urlCheckInterval = setInterval(() => {
-      debugLog('Periodic URL check');
+      debugLog('🔍 [DISTRACTION] Periodic URL check');
       checkUrlChange();
     }, 5000); // Check every 5 seconds
     
@@ -362,7 +381,7 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
     idleTimeoutRef.current = setTimeout(() => {
       const timeSinceActivity = Date.now() - lastActivityTime.current;
       if (timeSinceActivity >= 90000 && !isDistractedRef.current) {
-        debugLog('Initial idle timeout triggered');
+        debugLog('😴 [DISTRACTION] Initial idle timeout triggered');
         setIsDistracted(true);
         setLastDistractionType('idle');
         distractionStartTime.current = Date.now() - timeSinceActivity;
@@ -374,7 +393,7 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
     }, 90000);
     
     return () => {
-      debugLog('Cleaning up distraction monitoring');
+      debugLog('🧹 [DISTRACTION] Cleaning up monitoring');
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('mousemove', handleActivity);
       document.removeEventListener('keydown', handleActivity);

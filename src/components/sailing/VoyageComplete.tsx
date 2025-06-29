@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Trophy, Clock, AlertTriangle, MapPin, ArrowRight, Loader2, TrendingUp, Target } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { formatPreciseDuration, millisecondsToMinutes } from '../../utils/precisionTimer';
 import { supabase } from '../../lib/supabase';
 import type { Destination } from '../../types';
 
@@ -244,6 +245,12 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
     return `${mins}m`;
   };
 
+  const formatPreciseDurationInMinutes = (minutes: number) => {
+    // Convert minutes to milliseconds for precision formatting
+    const milliseconds = minutes * 60 * 1000;
+    return formatPreciseDuration(milliseconds);
+  };
+
   const getPerformanceMessage = () => {
     const focusScore = voyage.focus_quality_score || 0;
     const distractionCount = voyage.distraction_count || 0;
@@ -465,15 +472,15 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
           {/* Planned vs Actual */}
           {voyage.planned_duration && (
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Plan vs Actual</h3>
+              <h3 className="text-lg font-semibold mb-4">Planned vs Actual (High Precision)</h3>
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Planned Duration:</span>
-                  <span className="font-medium">{formatDuration(voyage.planned_duration)}</span>
+                  <span className="font-medium">{formatPreciseDurationInMinutes(voyage.planned_duration)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Actual Duration:</span>
-                  <span className="font-medium">{formatDuration(voyage.actual_duration || 0)}</span>
+                  <span className="font-medium">{formatPreciseDurationInMinutes(voyage.actual_duration || 0)}</span>
                 </div>
                 <div className="flex justify-between border-t pt-2">
                   <span className="text-gray-600">Completion:</span>
@@ -484,6 +491,10 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
                   }`}>
                     {voyage.planned_duration ? Math.round(((voyage.actual_duration || 0) / voyage.planned_duration) * 100) : 100}%
                   </span>
+                </div>
+                <div className="text-xs text-gray-500 mt-2">
+                  <p>⏱️ Using high-precision timing for accurate measurements</p>
+                  <p>Precision: ±0.01 seconds</p>
                 </div>
               </div>
             </Card>

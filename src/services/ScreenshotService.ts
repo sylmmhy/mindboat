@@ -17,6 +17,8 @@ export interface ScreenshotData {
 export class ScreenshotService {
   private static canvas: HTMLCanvasElement | null = null;
   private static context: CanvasRenderingContext2D | null = null;
+  private static screenStream: MediaStream | null = null;
+  private static permissionGranted: boolean = false;
 
   /**
    * Initialize the screenshot service
@@ -27,12 +29,15 @@ export class ScreenshotService {
   }
 
   /**
-   * Capture a screenshot of the current page including camera view
+   * Request screen capture permission once and store the stream
    */
-  static async captureScreenshot(cameraStream?: MediaStream): Promise<ScreenshotData> {
+  static async requestScreenPermission(): Promise<boolean> {
+    if (this.permissionGranted && this.screenStream) {
+      return true;
+    }
+
     try {
-      // Get the page screenshot using Screen Capture API
-      const pageStream = await navigator.mediaDevices.getDisplayMedia({
+      this.screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           mediaSource: 'screen',
           width: { ideal: 1920 },
@@ -40,6 +45,38 @@ export class ScreenshotService {
         },
         audio: false
       });
+
+      this.permissionGranted = true;
+      
+      // Listen for stream ending (user stops sharing)
+      this.screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+        console.log('[ScreenshotService] Screen sharing ended by user');
+        this.screenStream = null;
+        this.permissionGranted = false;
+      });
+
+      return true;
+    } catch (error) {
+      console.warn('[ScreenshotService] Screen capture permission denied:', error);
+      this.permissionGranted = false;
+      return false;
+    }
+  }
+
+  /**
+   * Capture a screenshot of the current page including camera view
+   */
+  static async captureScreenshot(cameraStream?: MediaStream): Promise<ScreenshotData> {
+    try {
+      // Ensure we have screen permission
+      if (!this.permissionGranted || !this.screenStream) {
+        const hasPermission = await this.requestScreenPermission();
+        if (!hasPermission) {
+          throw new Error('Screen capture permission required');
+        }
+      }
+
+      const pageStream = this.screenStream!;
 
       // Create video elements for page and camera
       const pageVideo = document.createElement('video');
@@ -115,8 +152,8 @@ export class ScreenshotService {
         }, 'image/jpeg', 0.8);
       });
 
-      // Clean up streams
-      pageStream.getTracks().forEach(track => track.stop());
+      // Don't stop the screen stream - reuse it for future screenshots
+      // Only clean up temporary video elements (they're garbage collected)
 
       return {
         blob,
@@ -161,22 +198,21 @@ export class ScreenshotService {
   }
 
   /**
-   * Request screen capture permission
+   * Request screen capture permission (alias for requestScreenPermission)
    */
   static async requestPermission(): Promise<boolean> {
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: false
-      });
-      
-      // Stop the stream immediately - we just wanted to check permission
-      stream.getTracks().forEach(track => track.stop());
-      
-      return true;
-    } catch (error) {
-      console.warn('Screen capture permission denied:', error);
-      return false;
+    return this.requestScreenPermission();
+  }
+
+  /**
+   * Stop screen sharing and clean up
+   */
+  static stopScreenSharing(): void {
+    if (this.screenStream) {
+      this.screenStream.getTracks().forEach(track => track.stop());
+      this.screenStream = null;
+      this.permissionGranted = false;
+      console.log('[ScreenshotService] Screen sharing stopped');
     }
   }
 }

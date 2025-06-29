@@ -96,7 +96,7 @@ export const useAdvancedDistraction = ({
   // Debug logging
   const debugLog = useCallback((message: string, data?: any) => {
     if (import.meta.env.DEV) {
-      console.log(`[Advanced Distraction] ${message}`, data || '');
+      console.log(`🤖 [ADVANCED DISTRACTION] ${message}`, data || '');
     }
   }, []);
 
@@ -192,7 +192,7 @@ export const useAdvancedDistraction = ({
             lastCameraCheck: currentTime
           }));
           
-          debugLog('Started tracking camera absence', { analysis });
+          debugLog('📹 Started tracking camera absence', { analysis });
         } else if (stateRef.current.distractionType === 'camera_absence') {
           // Check if absence duration exceeds threshold
           const absenceDuration = currentTime - stateRef.current.distractionStartTime;
@@ -210,7 +210,7 @@ export const useAdvancedDistraction = ({
               timestamp: stateRef.current.distractionStartTime,
             });
 
-            debugLog('Camera distraction triggered', { 
+            debugLog('🚨 Camera distraction triggered', { 
               absenceDuration, 
               threshold: DISTRACTION_THRESHOLDS.CAMERA_ABSENCE_THRESHOLD 
             });
@@ -228,7 +228,7 @@ export const useAdvancedDistraction = ({
             confidenceLevel: analysis.confidenceLevel
           }));
           
-          debugLog('Camera distraction cleared - person returned', { analysis });
+          debugLog('✅ Camera distraction cleared - person returned', { analysis });
         } else {
           setState(prev => ({
             ...prev,
