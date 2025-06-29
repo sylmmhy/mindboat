@@ -43,6 +43,7 @@ interface CombinedDetectionState {
   error: string | null;
   lastCameraAnalysis: any;
   lastScreenshotAnalysis: any;
+  isActive: boolean;
 }
 
 interface UrlDetectionState {
@@ -76,7 +77,8 @@ export const useAdvancedDistraction = ({
     confidenceLevel: 0,
     error: null,
     lastCameraAnalysis: null,
-    lastScreenshotAnalysis: null
+    lastScreenshotAnalysis: null,
+    isActive: false
   });
 
   const [urlState, setUrlState] = useState<UrlDetectionState>({
@@ -333,6 +335,9 @@ export const useAdvancedDistraction = ({
 
     debugLog('COMBINED', 'Starting combined analysis');
     
+    // Mark combined analysis as active
+    setCombinedState(prev => ({ ...prev, isActive: true }));
+    
     try {
       // Take screenshot
       const screenshot = await ScreenshotService.captureScreen();
@@ -492,7 +497,8 @@ Respond with JSON:
         confidenceLevel: 0,
         error: null,
         lastCameraAnalysis: null,
-        lastScreenshotAnalysis: null
+        lastScreenshotAnalysis: null,
+        isActive: false
       });
 
       setUrlState({
@@ -640,7 +646,10 @@ Respond with JSON:
     url: urlState,
     monitoring: isMonitoring,
     voyageActive: isVoyageActive,
-    exploring: isExploring
+    exploring: isExploring,
+    // Add missing properties that SailingMode.tsx expects
+    geminiConfigured: GeminiService.isConfigured(),
+    cameraAvailable: !!cameraStream
   };
 
   return {
