@@ -80,7 +80,7 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
         // First, ensure voyage statistics are calculated
         try {
           const { error: statsError } = await supabase
-            .rpc('calculate_voyage_statistics', { voyage_id_param: voyageId });
+            .rpc('calculate_voyage_statistics_precise', { voyage_id_param: voyageId });
           
           if (statsError) {
             console.warn('Failed to calculate voyage statistics:', statsError);
@@ -88,7 +88,7 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
             console.log('✅ Statistics calculation completed');
           }
         } catch (statsError) {
-          console.warn('Error calling calculate_voyage_statistics:', statsError);
+          console.warn('Error calling calculate_voyage_statistics_precise:', statsError);
         }
   
         // Wait a moment for database consistency
@@ -98,7 +98,7 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
   
         // Fetch assessment data
         const { data, error: fetchError } = await supabase
-          .rpc('get_voyage_assessment_data', { voyage_id_param: voyageId });
+          .rpc('get_voyage_assessment_data_precise', { voyage_id_param: voyageId });
   
         if (fetchError) {
           console.error('Assessment data fetch error:', fetchError);
@@ -236,15 +236,44 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
   const destination = voyageData.destination;
   const hasExplorationNotes = exploration_notes && exploration_notes.length > 0;
 
-  const formatPreciseDurationInMinutes = (minutes: number) => {
-    // Convert minutes to milliseconds for precision formatting
-    const milliseconds = minutes * 60 * 1000;
+  const formatPreciseDurationFromMs = (milliseconds: number) => {
+    // Use high-precision formatting directly from milliseconds
     return formatPreciseDuration(milliseconds);
   };
 
-  const formatDuration = (minutes: number) => {
-    // Use high-precision formatting for all durations
-    return formatPreciseDurationInMinutes(minutes);
+  const formatDuration = (durationValue: any) => {
+    // Check if we have high precision data (milliseconds)
+    if (typeof durationValue === 'object' && durationValue.ms !== undefined) {
+      return formatPreciseDurationFromMs(durationValue.ms);
+    }
+    
+    // If it's already in milliseconds (number > 1000 suggests milliseconds)
+    if (typeof durationValue === 'number' && durationValue > 1000) {
+      return formatPreciseDurationFromMs(durationValue);
+    }
+    
+    // Fallback: assume it's minutes and convert
+    const minutes = typeof durationValue === 'number' ? durationValue : 0;
+    const milliseconds = minutes * 60 * 1000;
+    return formatPreciseDuration(milliseconds);
+  };
+  
+  const getActualDuration = () => {
+    // Prefer high precision duration if available
+    if (voyage.actual_duration_ms) {
+      return voyage.actual_duration_ms;
+    }
+    // Fallback to regular duration in minutes converted to milliseconds
+    return (voyage.actual_duration || 0) * 60 * 1000;
+  };
+  
+  const getPlannedDuration = () => {
+    // Prefer high precision duration if available
+    if (voyage.planned_duration_ms) {
+      return voyage.planned_duration_ms;
+    }
+    // Fallback to regular duration in minutes converted to milliseconds
+    return (voyage.planned_duration || 0) * 60 * 1000;
   };
   const getPerformanceMessage = () => {
     const focusScore = voyage.focus_quality_score || 0;
@@ -320,7 +349,7 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
                 <Clock className="w-8 h-8 text-blue-500 mx-auto mb-2" />
                 <div>
                   <p className="text-2xl font-bold text-gray-800">
-                    {formatDuration(voyage.actual_duration || 0)}
+                    {formatDuration(getActualDuration())}
                   </p>
                   <p className="text-xs text-gray-500">High Precision</p>
                 </div>
@@ -474,25 +503,31 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Planned Duration:</span>
-                  <span className="font-medium">{formatPreciseDurationInMinutes(voyage.planned_duration)}</span>
+                  <span className="font-medium">{formatDuration(getPlannedDuration())}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Actual Duration:</span>
-                  <span className="font-medium">{formatPreciseDurationInMinutes(voyage.actual_duration || 0)}</span>
+                  <span className="font-medium">{formatDuration(getActualDuration())}</span>
                 </div>
                 <div className="flex justify-between border-t pt-2">
                   <span className="text-gray-600">Completion:</span>
                   <span className={`font-medium ${
-                    (voyage.actual_duration || 0) >= (voyage.planned_duration || 0)
+                    getActualDuration() >= getPlannedDuration()
                       ? 'text-green-600' 
                       : 'text-orange-600'
                   }`}>
-                    {voyage.planned_duration ? Math.round(((voyage.actual_duration || 0) / voyage.planned_duration) * 100) : 100}%
+                    {getPlannedDuration() ? Math.round((getActualDuration() / getPlannedDuration()) * 100) : 100}%
                   </span>
                 </div>
                 <div className="text-xs text-gray-500 mt-2">
                   <p>⏱️ Using high-precision timing for accurate measurements</p>
-                  <p>Precision: ±0.01 seconds</p>
+                  <p>Precision: ±0.01 seconds (sub-millisecond when available)</p>
+                  {voyage.actual_duration_ms && (
+                    <p className="text-green-600">✅ High precision data available</p>
+                  )}
+                  {!voyage.actual_duration_ms && (
+                    <p className="text-yellow-600">⚠️ Fallback to minute precision (legacy data)</p>
+                  )}
                 </div>
               </div>
             </Card>

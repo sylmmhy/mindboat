@@ -20,15 +20,22 @@ export interface CameraAnalysisResult {
 
 export interface ScreenshotAnalysisResult {
   contentRelevant: boolean;
+  distractionType?: string;
   confidenceLevel: number;
   detectedApps: string[];
   distractionLevel: 'none' | 'mild' | 'moderate' | 'high';
   reasoning: string;
   suggestedAction: 'continue' | 'gentle_reminder' | 'intervention_needed';
+  screenAnalysis: {
+    contentType: string;
+    isProductiveContent: boolean;
+    screenObservations: string;
+  };
   cameraAnalysis: {
     personPresent: boolean;
     appearsFocused: boolean;
     cameraObservations: string;
+    physicalDistraction?: string;
   };
 }
 
@@ -216,6 +223,7 @@ export class GeminiService {
           const result = JSON.parse(jsonMatch[0]);
           return {
             contentRelevant: result.contentRelevant || false,
+            distractionType: result.distractionType || null,
             confidenceLevel: result.confidenceLevel || 0,
             detectedApps: result.detectedApps || [],
             distractionLevel: result.distractionLevel || 'none',
@@ -229,7 +237,8 @@ export class GeminiService {
             cameraAnalysis: result.cameraAnalysis || {
               personPresent: true,
               appearsFocused: true,
-              cameraObservations: 'Camera analysis not available'
+              cameraObservations: 'Camera analysis not available',
+              physicalDistraction: null
             }
           };
         }
@@ -244,6 +253,7 @@ export class GeminiService {
 
       return {
         contentRelevant: contentRelevant && !hasDistraction,
+        distractionType: null,
         confidenceLevel: 50,
         detectedApps: [],
         distractionLevel: hasDistraction ? 'moderate' : 'none',
@@ -257,7 +267,8 @@ export class GeminiService {
         cameraAnalysis: {
           personPresent: true,
           appearsFocused: true,
-          cameraObservations: 'Fallback analysis - camera not analyzed'
+          cameraObservations: 'Fallback analysis - camera not analyzed',
+          physicalDistraction: null
         }
       };
 
@@ -267,6 +278,7 @@ export class GeminiService {
       // Return safe fallback - assume content is relevant to avoid false positives
       return {
         contentRelevant: true,
+        distractionType: null,
         confidenceLevel: 0,
         detectedApps: [],
         distractionLevel: 'none',
@@ -280,7 +292,8 @@ export class GeminiService {
         cameraAnalysis: {
           personPresent: true,
           appearsFocused: true,
-          cameraObservations: 'Analysis failed - no camera data'
+          cameraObservations: 'Analysis failed - no camera data',
+          physicalDistraction: null
         }
       };
     }

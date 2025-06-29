@@ -138,10 +138,28 @@ Common distracting patterns to watch for:
 - User not present in camera view when they should be working
 - User looking at phone/mobile device instead of screen
 - User facing away from screen or appearing distracted in camera view
+- User eating or drinking while working (mild distraction)
+- User in conversation with others (verbal distraction)
+- Multiple unrelated browser tabs open
+- Notification popups from social apps
+
+Specific distraction types to identify:
+- social_media: Facebook, Twitter, Instagram, TikTok, LinkedIn feed, etc.
+- entertainment: YouTube (non-work), Netflix, gaming sites, music streaming
+- shopping: Amazon, eBay, online stores, product browsing
+- news_browsing: CNN, BBC, news sites (unless research-related)
+- irrelevant_browsing: General off-topic web browsing
+- phone_usage: User looking at or using mobile device
+- looking_away: User's attention not on screen
+- eating_drinking: User eating or drinking
+- conversation: User talking to someone else
+- notification_popup: Distracting notifications visible
+- task_switching: Switching between multiple unrelated tasks
 
 Return a JSON response with:
 {
   "contentRelevant": boolean,
+  "distractionType": "string (one of the specific types above, or null if no distraction)",
   "confidenceLevel": number (0-100),
   "detectedApps": ["list", "of", "visible", "apps/sites"],
   "distractionLevel": "none" | "mild" | "moderate" | "high",
@@ -156,6 +174,7 @@ Return a JSON response with:
     "personPresent": boolean,
     "appearsFocused": boolean,
     "cameraObservations": "Brief description of what you see in the camera view"
+    "physicalDistraction": "string (eating_drinking, phone_usage, conversation, looking_away, or null)"
   }
 }
 

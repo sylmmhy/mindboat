@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 import { useNotificationStore } from './notificationStore';
+import { getHighPrecisionTime, calculatePreciseDuration } from '../utils/precisionTimer';
 import type { Voyage, DistractionDetectionEvent } from '../types';
 
 interface VoyageState {
@@ -10,6 +11,7 @@ interface VoyageState {
   isVoyageActive: boolean;
   distractionCount: number;
   startTime: Date | null;
+  preciseStartTime: number | null; // High precision start time in milliseconds
   isLoading: boolean;
   error: string | null;
   lastDistractionTime: number | null;  // Track last distraction to prevent rapid duplicates
@@ -35,6 +37,7 @@ export const useVoyageStore = create<VoyageState>()(
   isVoyageActive: false,
   distractionCount: 0,
   startTime: null,
+  preciseStartTime: null,
   isLoading: false,
   error: null,
   lastDistractionTime: null,
@@ -44,6 +47,7 @@ export const useVoyageStore = create<VoyageState>()(
 
     try {
       const startTime = new Date();
+      const preciseStartTime = getHighPrecisionTime();
 
       const { data, error } = await supabase
         .from('voyages')
@@ -52,6 +56,8 @@ export const useVoyageStore = create<VoyageState>()(
           destination_id: destinationId,
           start_time: startTime.toISOString(),
           planned_duration: plannedDuration,
+          planned_duration_ms: plannedDuration ? plannedDuration * 60000 : null, // Convert to milliseconds
+          start_time_precise_ms: Math.round(preciseStartTime),
           status: 'active',
           weather_mood: 'sunny', // Default weather
           distraction_count: 0,
@@ -83,6 +89,7 @@ export const useVoyageStore = create<VoyageState>()(
           isVoyageActive: true,
           distractionCount: 0,
           startTime,
+          preciseStartTime,
         });
 
         // Reset distraction tracking for new voyage
@@ -96,6 +103,7 @@ export const useVoyageStore = create<VoyageState>()(
         isVoyageActive: true,
         distractionCount: 0,
         startTime,
+        preciseStartTime,
       });
 
       // Reset distraction tracking for new voyage
@@ -115,17 +123,23 @@ export const useVoyageStore = create<VoyageState>()(
   },
 
   endVoyage: async (): Promise<Voyage | null> => {
-    const { currentVoyage, distractionCount } = get();
+    const { currentVoyage, distractionCount, preciseStartTime } = get();
     if (!currentVoyage) return null;
 
     set({ isLoading: true, error: null });
 
     try {
       const endTime = new Date();
+      const preciseEndTime = getHighPrecisionTime();
 
       // Calculate actual duration from the voyage's start_time in the database
       const voyageStartTime = new Date(currentVoyage.start_time);
       const actualDuration = Math.floor((endTime.getTime() - voyageStartTime.getTime()) / 60000); // minutes
+      
+      // Calculate precise duration in milliseconds
+      const preciseDuration = preciseStartTime ? 
+        Math.round(calculatePreciseDuration(preciseStartTime, preciseEndTime)) : 
+        (endTime.getTime() - voyageStartTime.getTime());
 
       // If it's a local voyage, just update local state
       if (currentVoyage.id.startsWith('local-')) {
@@ -133,6 +147,7 @@ export const useVoyageStore = create<VoyageState>()(
           ...currentVoyage,
           end_time: endTime.toISOString(),
           actual_duration: actualDuration,
+          actual_duration_ms: preciseDuration,
           distraction_count: distractionCount,
           status: 'completed' as const,
         };
@@ -142,6 +157,7 @@ export const useVoyageStore = create<VoyageState>()(
           isVoyageActive: false,
           distractionCount: 0,
           startTime: null,
+          preciseStartTime: null,
           voyageHistory: [updatedVoyage, ...state.voyageHistory],
         }));
 
@@ -153,6 +169,7 @@ export const useVoyageStore = create<VoyageState>()(
         .update({
           end_time: endTime.toISOString(),
           actual_duration: actualDuration,
+          actual_duration_ms: preciseDuration,
           distraction_count: distractionCount,
           status: 'completed',
         })
@@ -168,6 +185,7 @@ export const useVoyageStore = create<VoyageState>()(
           ...currentVoyage,
           end_time: endTime.toISOString(),
           actual_duration: actualDuration,
+          actual_duration_ms: preciseDuration,
           distraction_count: distractionCount,
           status: 'completed' as const,
         };
@@ -177,6 +195,7 @@ export const useVoyageStore = create<VoyageState>()(
           isVoyageActive: false,
           distractionCount: 0,
           startTime: null,
+          preciseStartTime: null,
           voyageHistory: [localUpdatedVoyage, ...state.voyageHistory],
         }));
 
@@ -185,7 +204,7 @@ export const useVoyageStore = create<VoyageState>()(
         // Calculate voyage statistics after successful database update
         try {
           const { error: statsError } = await supabase
-            .rpc('calculate_voyage_statistics', { voyage_id_param: currentVoyage.id });
+            .rpc('calculate_voyage_statistics_precise', { voyage_id_param: currentVoyage.id });
 
           if (statsError) {
             console.warn('Failed to calculate voyage statistics:', statsError);
@@ -199,6 +218,7 @@ export const useVoyageStore = create<VoyageState>()(
           isVoyageActive: false,
           distractionCount: 0,
           startTime: null,
+          preciseStartTime: null,
           voyageHistory: [data, ...state.voyageHistory],
         }));
 
@@ -354,6 +374,7 @@ export const useVoyageStore = create<VoyageState>()(
       isVoyageActive: false,
       distractionCount: 0,
       startTime: null,
+      preciseStartTime: null,
       lastDistractionTime: null,
       error: null,
     });

@@ -28,6 +28,37 @@ interface UseAdvancedDistractionProps {
   cameraStream?: MediaStream | null;
 }
 
+// Enhanced distraction type mapping
+const ENHANCED_DISTRACTION_MAPPING = {
+  // Social media domains
+  'facebook.com': 'social_media',
+  'twitter.com': 'social_media', 
+  'x.com': 'social_media',
+  'instagram.com': 'social_media',
+  'tiktok.com': 'social_media',
+  'linkedin.com/feed': 'social_media',
+  'reddit.com': 'social_media',
+  
+  // Entertainment
+  'youtube.com/watch': 'entertainment',
+  'netflix.com': 'entertainment',
+  'hulu.com': 'entertainment',
+  'twitch.tv': 'entertainment',
+  'spotify.com': 'entertainment',
+  
+  // Shopping
+  'amazon.com': 'shopping',
+  'ebay.com': 'shopping',
+  'aliexpress.com': 'shopping',
+  'etsy.com': 'shopping',
+  
+  // News
+  'cnn.com': 'news_browsing',
+  'bbc.com': 'news_browsing',
+  'news.google.com': 'news_browsing',
+  'reuters.com': 'news_browsing',
+  'nytimes.com': 'news_browsing',
+};
 // Tab switching detection state
 interface TabSwitchDetectionState {
   isDistracted: boolean;
@@ -189,6 +220,21 @@ export const useAdvancedDistraction = ({
         if (prev.startTime) {
           const duration = Date.now() - prev.startTime;
           
+          // Determine specific distraction type from analysis
+          let specificDistractionType: DistractionDetectionEvent['type'] = 'tab_switch'; // default
+          
+          if (analysis.distractionType) {
+            // Use the LLM-identified distraction type
+            specificDistractionType = analysis.distractionType as DistractionDetectionEvent['type'];
+          } else if (cameraIssues && analysis.cameraAnalysis?.physicalDistraction) {
+            // Use camera-detected physical distraction
+            specificDistractionType = analysis.cameraAnalysis.physicalDistraction as DistractionDetectionEvent['type'];
+          } else if (cameraIssues) {
+            specificDistractionType = analysis.cameraAnalysis?.personPresent === false ? 'camera_absence' : 'looking_away';
+          } else if (isContentIrrelevant) {
+            specificDistractionType = 'irrelevant_browsing';
+          }
+          
           // Only record if distraction lasted more than 3 seconds
           if (duration >= 3000) {
             debugLog('TAB_SWITCH', 'Recording completed distraction', { 
@@ -238,31 +284,48 @@ export const useAdvancedDistraction = ({
     debugLog('URL', 'URL changed detected', { from: previousUrl, to: currentUrl });
     lastUrlRef.current = currentUrl;
     
-    // Check against blacklist
-    const isBlacklisted = DISTRACTION_BLACKLIST.some(item => 
-      currentUrl.toLowerCase().includes(item.toLowerCase())
-    );
+    // Enhanced URL checking with specific distraction types
+    let distractionType: DistractionDetectionEvent['type'] | null = null;
+    
+    // Check for specific distraction types
+    for (const [domain, type] of Object.entries(ENHANCED_DISTRACTION_MAPPING)) {
+      if (currentUrl.toLowerCase().includes(domain.toLowerCase())) {
+        distractionType = type as DistractionDetectionEvent['type'];
+        break;
+      }
+    }
+    
+    // Fallback to general blacklist check
+    if (!distractionType) {
+      const isBlacklisted = DISTRACTION_BLACKLIST.some(item => 
+        currentUrl.toLowerCase().includes(item.toLowerCase())
+      );
+      
+      if (isBlacklisted) {
+        distractionType = 'irrelevant_browsing';
+      }
+    }
     
     // Check if task-related (simplified check)
     const isTaskRelated = currentDestination?.related_apps?.some((app: string) => 
       currentUrl.toLowerCase().includes(app.toLowerCase())
     ) || false;
     
-    if (isBlacklisted) {
-      debugLog('URL', 'Blacklisted site detected', { url: currentUrl });
+    if (distractionType) {
+      debugLog('URL', 'Distracting site detected', { url: currentUrl, type: distractionType });
       setUrlState(prev => ({
         ...prev,
         isDistracted: true,
         startTime: Date.now(),
         currentUrl,
-        distractionType: 'blacklisted_content'
+        distractionType: distractionType as 'blacklisted_content' | 'irrelevant_content'
       }));
       
       recordDistraction({
-        type: 'tab_switch',
+        type: distractionType,
         timestamp: Date.now(),
       });
-    } else if (!isTaskRelated && !isBlacklisted) {
+    } else if (!isTaskRelated) {
       // Check if it's an irrelevant site (not blacklisted but not related to task)
       const isProductivitySite = PRODUCTIVITY_WHITELIST.some(item => 
         currentUrl.toLowerCase().includes(item.toLowerCase())
@@ -279,7 +342,7 @@ export const useAdvancedDistraction = ({
         }));
         
         recordDistraction({
-          type: 'tab_switch',
+          type: 'irrelevant_browsing',
           timestamp: Date.now(),
         });
       }
@@ -369,7 +432,7 @@ export const useAdvancedDistraction = ({
             if (!prev.isDistracted) {
               const distractionDuration = currentTime - prev.lastCheck;
               debugLog('COMBINED', 'Distraction detected via combined analysis', { 
-                distractionDuration,
+                    type: specificDistractionType,
                 contentIrrelevant: isContentIrrelevant,
                 cameraIssues,
                 cameraAnalysis: analysis.cameraAnalysis
@@ -379,7 +442,8 @@ export const useAdvancedDistraction = ({
               setTimeout(() => {
                 recordDistraction({
                   type: cameraIssues ? 'camera_distraction' : 'tab_switch',
-                  timestamp: currentTime,
+                  cameraAnalysis: analysis.cameraAnalysis,
+                  specificType: specificDistractionType
                 });
               }, 0);
 
