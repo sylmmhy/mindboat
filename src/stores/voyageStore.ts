@@ -26,7 +26,7 @@ interface VoyageState {
 }
 
 // Configuration for distraction debouncing
-const DISTRACTION_DEBOUNCE_MS = 5000; // 5 seconds - can be modified
+const DISTRACTION_DEBOUNCE_MS = 10000; // 10 seconds - can be modified
 
 export const useVoyageStore = create<VoyageState>()(
   subscribeWithSelector((set, get) => ({
