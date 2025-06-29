@@ -145,7 +145,7 @@ Return a JSON response with:
   "confidenceLevel": number (0-100),
   "detectedApps": ["list", "of", "visible", "apps/sites"],
   "distractionLevel": "none" | "mild" | "moderate" | "high",
-  "reasoning": "Brief explanation of your assessment",
+  "reasoning": "Brief explanation of your assessment for both main screen and camera view",
   "suggestedAction": "continue" | "gentle_reminder" | "intervention_needed",
   "cameraAnalysis": {
     "personPresent": boolean,
