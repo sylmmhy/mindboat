@@ -235,13 +235,13 @@ export const PRODUCTIVITY_WHITELIST = [
  */
 export const DISTRACTION_THRESHOLDS = {
   // How long someone can be away from camera/unfocused before it's considered a distraction
-  CAMERA_ABSENCE_THRESHOLD: 15 * 1000, // 5 minutes (15s for testing)
+  CAMERA_ABSENCE_THRESHOLD: 5 * 60 * 1000, // 5 minutes (15s for testing)
   
   // How long someone can be on blacklisted content before it's considered a distraction  
-  BLACKLIST_THRESHOLD: 15 * 1000, // 5 minutes (15s for testing)
+  BLACKLIST_THRESHOLD: 5 * 60 * 1000, // 5 minutes (15s for testing)
   
   // How long someone can be on irrelevant content before it's considered a distraction
-  IRRELEVANT_CONTENT_THRESHOLD: 15 * 1000, // 5 minutes (15s for testing)
+  IRRELEVANT_CONTENT_THRESHOLD: 5 * 60 * 1000, // 5 minutes (15s for testing)
   
   // How often to take and analyze screenshots
   SCREENSHOT_INTERVAL: 60 * 1000, // 60 seconds (now includes camera analysis)
