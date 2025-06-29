@@ -3,14 +3,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Anchor, Volume2, VolumeX, Settings, ArrowLeft, Compass } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { CameraView } from './CameraView';
 import { DistractionAlert } from './DistractionAlert';
 import { ExplorationMode } from './ExplorationMode';
 import { SeagullCompanion } from './SeagullCompanion';
 import { WeatherSystem } from './WeatherSystem';
 import { useVoyageStore } from '../../stores/voyageStore';
-import { useDistraction } from '../../hooks/useDistraction';
+import { useAdvancedDistraction } from '../../hooks/useAdvancedDistraction';
 import { useAudio } from '../../hooks/useAudio';
 import { useNotificationStore } from '../../stores/notificationStore';
+import { 
+  getHighPrecisionTime, 
+  calculatePreciseDuration, 
+  formatPreciseDuration,
+  createPrecisionInterval 
+} from '../../utils/precisionTimer';
+import { GeminiService } from '../../services/GeminiService';
 import type { Destination } from '../../types';
 
 interface SailingModeProps {
@@ -19,21 +27,31 @@ interface SailingModeProps {
 }
 
 export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoyage }) => {
-  const [elapsedTime, setElapsedTime] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0); // Keep in milliseconds for precision
   const [showControls, setShowControls] = useState(false);
   const [weatherMood, setWeatherMood] = useState<'sunny' | 'cloudy' | 'rainy' | 'stormy'>('sunny');
   const [showDistractionAlert, setShowDistractionAlert] = useState(false);
   const [isExploring, setIsExploring] = useState(false);
   const [showSeagull, setShowSeagull] = useState(false);
   const [inspirationNotes, setInspirationNotes] = useState<Array<{ content: string, type: 'text' | 'voice', timestamp: number }>>([]);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraPermissionGranted, setCameraPermissionGranted] = useState(false);
 
   const { currentVoyage, distractionCount, endVoyage } = useVoyageStore();
   const { showSuccess } = useNotificationStore();
   const {
     isDistracted,
+    distractionType,
+    confidenceLevel,
     isMonitoring,
+    lastAnalysisResults,
+    diagnostics,
     handleDistractionResponse
-  } = useDistraction({ isExploring, currentDestination: destination });
+  } = useAdvancedDistraction({ 
+    isExploring, 
+    currentDestination: destination,
+    cameraStream 
+  });
   const {
     isPlaying,
     volume,
@@ -45,13 +63,18 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     setWeatherMood: setAudioWeatherMood
   } = useAudio();
 
-  const intervalRef = useRef<NodeJS.Timeout>();
+  // High-precision timer
+  const timerRef = useRef<ReturnType<typeof createPrecisionInterval>>();
+  const startTimeRef = useRef<number>(0);
   const boatPosition = useRef({ x: 50, y: 50 });
   const trail = useRef<Array<{ x: number; y: number; timestamp: number }>>([]);
   const seagullTimerRef = useRef<NodeJS.Timeout>();
 
-  // Start audio and show initial notification when component mounts
+  // Initialize services and start monitoring
   useEffect(() => {
+    // Initialize Gemini service
+    GeminiService.initialize();
+    
     // Small delay to ensure audio system is ready
     const timer = setTimeout(() => {
       startAmbientSound();
@@ -71,34 +94,41 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     };
   }, [startAmbientSound, stopAmbientSound]);
 
-  // Timer effect
+  // High-precision timer effect
   useEffect(() => {
     if (currentVoyage) {
-      intervalRef.current = setInterval(() => {
-        const startTime = new Date(currentVoyage.start_time).getTime();
-        const now = Date.now();
-        const elapsed = Math.floor((now - startTime) / 1000);
-        setElapsedTime(elapsed);
+      startTimeRef.current = new Date(currentVoyage.start_time).getTime();
+      
+      timerRef.current = createPrecisionInterval((elapsedMs) => {
+        setElapsedTime(elapsedMs);
 
-        // Show milestone notifications only at significant intervals (every 30 minutes instead of 10)
-        if (elapsed === 1800 && !localStorage.getItem(`milestone-30-${currentVoyage.id}`)) { // 30 minutes
+        // Show milestone notifications at precise intervals
+        const elapsedMinutes = Math.floor(elapsedMs / 60000);
+        const elapsedSeconds = Math.floor(elapsedMs / 1000);
+        
+        // 30-minute milestone
+        if (elapsedSeconds === 1800 && !localStorage.getItem(`milestone-30-${currentVoyage.id}`)) {
           showSuccess('30 minutes of sustained focus!', 'Great Achievement');
           localStorage.setItem(`milestone-30-${currentVoyage.id}`, 'true');
-        } else if (elapsed === 3600 && !localStorage.getItem(`milestone-60-${currentVoyage.id}`)) { // 1 hour
+        }
+        // 1-hour milestone  
+        else if (elapsedSeconds === 3600 && !localStorage.getItem(`milestone-60-${currentVoyage.id}`)) {
           showSuccess('1 full hour of deep focus!', 'Excellent Work');
           localStorage.setItem(`milestone-60-${currentVoyage.id}`, 'true');
         }
-      }, 1000);
+      }, 100); // Update every 100ms for smooth display
+      
+      timerRef.current.start();
     }
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (timerRef.current) {
+        timerRef.current.stop();
       }
     };
   }, [currentVoyage, showSuccess]);
 
-  // Distraction alert effect
+  // Enhanced distraction alert effect
   useEffect(() => {
     if (isDistracted && !isExploring) {
       setShowDistractionAlert(true);
@@ -176,7 +206,7 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     const newNote = {
       content,
       type,
-      timestamp: Date.now()
+      timestamp: getHighPrecisionTime()
     };
     setInspirationNotes(prev => [...prev, newNote]);
 
@@ -189,10 +219,15 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
     );
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  // Handle camera stream changes
+  const handleCameraStream = (stream: MediaStream | null) => {
+    setCameraStream(stream);
+    setCameraPermissionGranted(!!stream);
+  };
+
+  // Format time with high precision
+  const formatTime = (milliseconds: number) => {
+    return formatPreciseDuration(milliseconds);
   };
 
   const getWeatherEmoji = () => {
@@ -311,7 +346,23 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
               <span className="text-white text-sm">💡 {inspirationNotes.length} notes</span>
             </div>
           )}
+          {cameraPermissionGranted && (
+            <div className="bg-green-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
+              <span className="text-white text-sm">📷 AI Monitoring</span>
+            </div>
+          )}
+          {diagnostics.geminiConfigured && (
+            <div className="bg-blue-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
+              <span className="text-white text-sm">🤖 Gemini Ready</span>
+            </div>
+          )}
         </div>
+        
+        {/* Camera View Component */}
+        <CameraView 
+          isActive={true}
+          onCameraStream={handleCameraStream}
+        />
 
         <div className="flex items-center space-x-2">
           <Button
@@ -388,6 +439,39 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                         {isExploring ? 'Exploration' : 'Focus'}
                       </span>
                     </div>
+                    
+                    {/* Advanced monitoring status */}
+                    <div className="col-span-2 border-t pt-2">
+                      <p className="text-sm font-medium text-gray-700 mb-2">AI Monitoring Status:</p>
+                      <div className="text-xs space-y-1">
+                        <div className="flex justify-between">
+                          <span>Camera:</span>
+                          <span className={diagnostics.cameraAvailable ? 'text-green-600' : 'text-gray-500'}>
+                            {diagnostics.cameraAvailable ? 'Active' : 'Not available'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Gemini AI:</span>
+                          <span className={diagnostics.geminiConfigured ? 'text-green-600' : 'text-yellow-600'}>
+                            {diagnostics.geminiConfigured ? 'Connected' : 'Not configured'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Screenshot:</span>
+                          <span className={diagnostics.screenshotSupported ? 'text-green-600' : 'text-gray-500'}>
+                            {diagnostics.screenshotSupported ? 'Supported' : 'Not supported'}
+                          </span>
+                        </div>
+                        {isDistracted && (
+                          <div className="flex justify-between">
+                            <span>Distraction:</span>
+                            <span className="text-red-600">
+                              {distractionType} ({confidenceLevel}% confidence)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -423,8 +507,8 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
       <DistractionAlert
         isVisible={showDistractionAlert}
         onResponse={handleDistractionChoice}
-        distractionType="tab_switch"
-        duration={elapsedTime * 1000}
+        distractionType={distractionType || 'tab_switch'}
+        duration={elapsedTime}
       />
 
       {/* Exploration Mode */}
@@ -451,6 +535,11 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           <p className="text-white/80 text-sm text-center mt-1">
             {destination.description}
           </p>
+          {!diagnostics.geminiConfigured && (
+            <p className="text-yellow-300 text-xs text-center mt-2">
+              💡 Add Gemini API key for advanced AI monitoring
+            </p>
+          )}
         </div>
       </div>
 

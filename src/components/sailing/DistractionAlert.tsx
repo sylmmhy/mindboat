@@ -7,7 +7,7 @@ import { Card } from '../ui/Card';
 interface DistractionAlertProps {
   isVisible: boolean;
   onResponse: (response: 'return_to_course' | 'exploring') => void;
-  distractionType: 'tab_switch' | 'idle' | 'camera_distraction';
+  distractionType: 'tab_switch' | 'idle' | 'camera_distraction' | 'camera_absence' | 'blacklisted_content' | 'irrelevant_content';
   duration?: number;
 }
 
@@ -23,10 +23,15 @@ export const DistractionAlert: React.FC<DistractionAlertProps> = ({
     switch (distractionType) {
       case 'tab_switch':
         return "I noticed you switched away from your focus area. The winds have shifted!";
+      case 'camera_absence':
+      case 'camera_distraction':
+        return "The AI noticed you're not at your workstation. Time to return to your voyage!";
+      case 'blacklisted_content':
+        return "You've sailed into distracting waters. Let's navigate back to your destination!";
+      case 'irrelevant_content':
+        return "The current content doesn't seem related to your voyage goal. Shall we return to course?";
       case 'idle':
         return "You seem to be taking a break. The sea is calm and peaceful.";
-      case 'camera_distraction':
-        return "Your gaze has wandered from the horizon. The lighthouse calls you back.";
       default:
         return "The captain seems to be off course!";
     }
@@ -35,11 +40,14 @@ export const DistractionAlert: React.FC<DistractionAlertProps> = ({
   const getDistractionIcon = () => {
     switch (distractionType) {
       case 'tab_switch':
+      case 'blacklisted_content':
+      case 'irrelevant_content':
         return <Compass className="w-16 h-16 text-yellow-500" />;
-      case 'idle':
-        return <Eye className="w-16 h-16 text-blue-500" />;
+      case 'camera_absence':
       case 'camera_distraction':
         return <Camera className="w-16 h-16 text-orange-500" />;
+      case 'idle':
+        return <Eye className="w-16 h-16 text-blue-500" />;
       default:
         return <AlertTriangle className="w-16 h-16 text-yellow-500" />;
     }
