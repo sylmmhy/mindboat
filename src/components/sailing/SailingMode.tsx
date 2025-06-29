@@ -451,9 +451,9 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Screenshot:</span>
-                          <span className={diagnostics.screenshotSupported ? 'text-green-600' : 'text-gray-500'}>
-                            {diagnostics.screenshotSupported ? 'Supported' : 'Not supported'}
+                          <span>Combined Analysis:</span>
+                          <span className={diagnostics.combined?.isActive ? 'text-green-600' : 'text-gray-500'}>
+                            {diagnostics.combined?.isActive ? 'Active (60s)' : 'Inactive'}
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -462,16 +462,22 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                             {diagnostics.geminiConfigured ? 'Connected' : 'Not configured'}
                           </span>
                         </div>
-                        {(isDistracted || diagnostics.camera?.isDistracted || diagnostics.screenshot?.isDistracted || diagnostics.url?.isDistracted) && (
+                        {(isDistracted || diagnostics.combined?.isDistracted || diagnostics.url?.isDistracted) && (
                           <div className="mt-2 text-red-600">
                             <span>Overall Status: 🚨 DISTRACTED ({distractionType})</span>
+                          </div>
+                        )}
+                        {diagnostics.combined?.lastCameraAnalysis && (
+                          <div className="mt-2 text-xs text-blue-600">
+                            <p>📷 Camera: {diagnostics.combined.lastCameraAnalysis.personPresent ? '✅ Present' : '❌ Absent'} | 
+                            {diagnostics.combined.lastCameraAnalysis.appearsFocused ? ' ✅ Focused' : ' ❌ Distracted'}</p>
                           </div>
                         )}
                       </div>
                     </div>
                     <div className="mt-2 pt-2 border-t text-xs text-gray-400">
-                      <p>🔍 Independent parallel detection systems</p>
-                      <p>Each system runs independently for maximum reliability</p>
+                      <p>🔍 Tab switch detection + Combined analysis (60s)</p>
+                      <p>Screenshot analysis includes camera view for efficiency</p>
                     </div>
                   </div>
                 </div>

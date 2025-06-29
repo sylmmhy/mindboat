@@ -25,6 +25,11 @@ export interface ScreenshotAnalysisResult {
   distractionLevel: 'none' | 'mild' | 'moderate' | 'high';
   reasoning: string;
   suggestedAction: 'continue' | 'gentle_reminder' | 'intervention_needed';
+  cameraAnalysis: {
+    personPresent: boolean;
+    appearsFocused: boolean;
+    cameraObservations: string;
+  };
 }
 
 export class GeminiService {
@@ -186,6 +191,7 @@ export class GeminiService {
 
   /**
    * Analyze screenshot to detect if content is relevant to user's goal
+   * Now includes analysis of both main screen and camera view (if present)
    */
   static async analyzeScreenshot(
     imageBlob: Blob,
@@ -214,7 +220,12 @@ export class GeminiService {
             detectedApps: result.detectedApps || [],
             distractionLevel: result.distractionLevel || 'none',
             reasoning: result.reasoning || 'No reasoning provided',
-            suggestedAction: result.suggestedAction || 'continue'
+            suggestedAction: result.suggestedAction || 'continue',
+            cameraAnalysis: result.cameraAnalysis || {
+              personPresent: true,
+              appearsFocused: true,
+              cameraObservations: 'Camera analysis not available'
+            }
           };
         }
       } catch (parseError) {
@@ -232,7 +243,12 @@ export class GeminiService {
         detectedApps: [],
         distractionLevel: hasDistraction ? 'moderate' : 'none',
         reasoning: responseText.substring(0, 200),
-        suggestedAction: hasDistraction ? 'gentle_reminder' : 'continue'
+        suggestedAction: hasDistraction ? 'gentle_reminder' : 'continue',
+        cameraAnalysis: {
+          personPresent: true,
+          appearsFocused: true,
+          cameraObservations: 'Fallback analysis - camera not analyzed'
+        }
       };
 
     } catch (error) {
@@ -245,7 +261,12 @@ export class GeminiService {
         detectedApps: [],
         distractionLevel: 'none',
         reasoning: `Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        suggestedAction: 'continue'
+        suggestedAction: 'continue',
+        cameraAnalysis: {
+          personPresent: true,
+          appearsFocused: true,
+          cameraObservations: 'Analysis failed - no camera data'
+        }
       };
     }
   }

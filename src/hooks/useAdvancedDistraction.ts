@@ -1,13 +1,12 @@
 /**
- * Advanced Distraction Detection Hook - Independent Parallel Detection
+ * Advanced Distraction Detection Hook - Combined Screenshot + Camera Analysis
  * 
- * This hook implements sophisticated distraction detection using multiple independent systems:
- * 1. Camera monitoring for user presence and focus (independent)
- * 2. Screenshot analysis for content relevance (independent)  
- * 3. URL blacklist checking (independent)
- * 4. Tab switching detection (handled by useDistraction hook)
+ * This hook implements sophisticated distraction detection using:
+ * 1. Combined screenshot + camera analysis every 60 seconds
+ * 2. URL blacklist checking (independent)
+ * 3. Tab switching detection (handled by useDistraction hook)
  * 
- * Each detection method runs independently and reports its own status.
+ * The screenshot analysis now includes camera view analysis in a single request.
  * Distraction is triggered when ANY detection method indicates distraction.
  */
 
@@ -28,21 +27,16 @@ interface UseAdvancedDistractionProps {
   cameraStream?: MediaStream | null;
 }
 
-// Independent state for each detection method
-interface CameraDetectionState {
-  isDistracted: boolean;
-  startTime: number | null;
-  lastCheck: number;
-  confidenceLevel: number;
-  error: string | null;
-}
 
-interface ScreenshotDetectionState {
+// Combined screenshot + camera detection state
+interface CombinedDetectionState {
   isDistracted: boolean;
   startTime: number | null;
   lastCheck: number;
   confidenceLevel: number;
   error: string | null;
+  lastCameraAnalysis: any;
+  lastScreenshotAnalysis: any;
 }
 
 interface UrlDetectionState {
@@ -58,21 +52,16 @@ export const useAdvancedDistraction = ({
   cameraStream 
 }: UseAdvancedDistractionProps = {}) => {
   
-  // Independent state for each detection method
-  const [cameraState, setCameraState] = useState<CameraDetectionState>({
-    isDistracted: false,
-    startTime: null,
-    lastCheck: Date.now(),
-    confidenceLevel: 0,
-    error: null
-  });
 
-  const [screenshotState, setScreenshotState] = useState<ScreenshotDetectionState>({
+  // Combined detection state (screenshot + camera in one analysis)
+  const [combinedState, setCombinedState] = useState<CombinedDetectionState>({
     isDistracted: false,
     startTime: null,
     lastCheck: Date.now(),
     confidenceLevel: 0,
-    error: null
+    error: null,
+    lastCameraAnalysis: null,
+    lastScreenshotAnalysis: null
   });
 
   const [urlState, setUrlState] = useState<UrlDetectionState>({
@@ -85,13 +74,11 @@ export const useAdvancedDistraction = ({
   // Combined state
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [lastAnalysisResults, setLastAnalysisResults] = useState<{
-    camera?: any;
-    screenshot?: any;
+    combined?: any;
   }>({});
 
   // Refs for intervals
-  const cameraCheckInterval = useRef<NodeJS.Timeout>();
-  const screenshotCheckInterval = useRef<NodeJS.Timeout>();
+  const combinedCheckInterval = useRef<NodeJS.Timeout>();
   const urlCheckInterval = useRef<NodeJS.Timeout>();
 
   // Store refs for current values to avoid stale closures
@@ -114,7 +101,7 @@ export const useAdvancedDistraction = ({
 
   const { isVoyageActive, recordDistraction } = useVoyageStore();
 
-  // Debug logging with different prefixes for each detection method
+  // Debug logging
   const debugLog = useCallback((method: string, message: string, data?: any) => {
     if (import.meta.env.DEV) {
       console.log(`🎯 [${method}] ${message}`, data || '');
@@ -122,12 +109,11 @@ export const useAdvancedDistraction = ({
   }, []);
 
   // Calculate combined distraction state
-  const isDistracted = cameraState.isDistracted || screenshotState.isDistracted || urlState.isDistracted;
+  const isDistracted = combinedState.isDistracted || urlState.isDistracted;
   const distractionType = 
-    cameraState.isDistracted ? 'camera_distraction' :
-    screenshotState.isDistracted ? 'irrelevant_content' :
+    combinedState.isDistracted ? 'camera_distraction' :
     urlState.distractionType || 'tab_switch';
-  const confidenceLevel = Math.max(cameraState.confidenceLevel, screenshotState.confidenceLevel);
+  const confidenceLevel = Math.max(combinedState.confidenceLevel, 50);
 
   /**
    * Check if URL is in blacklist
@@ -166,136 +152,18 @@ export const useAdvancedDistraction = ({
   }, []);
 
   /**
-   * INDEPENDENT: Analyze camera feed for user presence and focus
+   * COMBINED: Analyze screenshot + camera for content relevance and user presence
    */
-  const checkCameraForDistraction = useCallback(async () => {
-    if (!cameraStreamRef.current || !GeminiService.isConfigured()) {
-      debugLog('CAMERA', 'Skipping camera check - no stream or Gemini not configured');
-      return;
-    }
-
-    debugLog('CAMERA', 'Starting camera analysis...');
-
-    try {
-      setCameraState(prev => ({ ...prev, error: null }));
-
-      // Capture frame from camera stream
-      const video = document.createElement('video');
-      video.srcObject = cameraStreamRef.current;
-      video.muted = true;
-      
-      await new Promise(resolve => {
-        video.onloadedmetadata = resolve;
-      });
-      await video.play();
-
-      // Capture image from video
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(video, 0, 0);
-
-      // Convert to blob
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error('Failed to capture camera frame'));
-        }, 'image/jpeg', 0.8);
-      });
-
-      // Analyze with Gemini
-      const userGoal = currentDestinationRef.current?.description || 'Focus on work';
-      const currentTask = currentDestinationRef.current?.destination_name || 'Current task';
-
-      const analysis = await GeminiService.analyzeCameraImage(blob, userGoal, currentTask);
-      
-      setLastAnalysisResults(prev => ({ ...prev, camera: analysis }));
-      debugLog('CAMERA', 'Analysis completed', { analysis });
-
-      // Check for distraction
-      const currentTime = Date.now();
-      const personAbsent = !analysis.personPresent || !analysis.appearsFocused;
-
-      if (personAbsent) {
-        setCameraState(prev => {
-          if (!prev.startTime) {
-            debugLog('CAMERA', 'Started tracking camera absence', { analysis });
-            return {
-              ...prev,
-              startTime: currentTime,
-              lastCheck: currentTime,
-              confidenceLevel: analysis.confidenceLevel
-            };
-          } else {
-            // Check if absence duration exceeds threshold
-            const absenceDuration = currentTime - prev.startTime;
-            
-            if (absenceDuration > DISTRACTION_THRESHOLDS.CAMERA_ABSENCE_THRESHOLD && !prev.isDistracted) {
-              debugLog('CAMERA', '🚨 Camera distraction triggered!', { 
-                absenceDuration, 
-                threshold: DISTRACTION_THRESHOLDS.CAMERA_ABSENCE_THRESHOLD 
-              });
-
-              // Record distraction
-              recordDistraction({
-                type: 'camera_distraction',
-                timestamp: prev.startTime,
-              });
-
-              return {
-                ...prev,
-                isDistracted: true,
-                confidenceLevel: analysis.confidenceLevel
-              };
-            }
-            
-            return {
-              ...prev,
-              lastCheck: currentTime,
-              confidenceLevel: analysis.confidenceLevel
-            };
-          }
-        });
-      } else {
-        // Person is present and focused - clear camera-related distraction
-        setCameraState(prev => {
-          if (prev.isDistracted || prev.startTime) {
-            debugLog('CAMERA', '✅ Camera distraction cleared - person returned', { analysis });
-          }
-          return {
-            ...prev,
-            isDistracted: false,
-            startTime: null,
-            lastCheck: currentTime,
-            confidenceLevel: analysis.confidenceLevel
-          };
-        });
-      }
-
-    } catch (error) {
-      debugLog('CAMERA', '❌ Camera analysis failed', { error: error instanceof Error ? error.message : error });
-      setCameraState(prev => ({ 
-        ...prev, 
-        error: error instanceof Error ? error.message : 'Camera analysis failed',
-        lastCheck: Date.now()
-      }));
-    }
-  }, [recordDistraction, debugLog]);
-
-  /**
-   * INDEPENDENT: Analyze screenshot for content relevance
-   */
-  const checkScreenshotForDistraction = useCallback(async () => {
+  const checkCombinedForDistraction = useCallback(async () => {
     if (!GeminiService.isConfigured() || !ScreenshotService.isSupported()) {
-      debugLog('SCREENSHOT', 'Skipping screenshot check - Gemini not configured or screenshots not supported');
+      debugLog('COMBINED', 'Skipping combined check - Gemini not configured or screenshots not supported');
       return;
     }
 
-    debugLog('SCREENSHOT', 'Starting screenshot analysis...');
+    debugLog('COMBINED', 'Starting combined screenshot + camera analysis...');
 
     try {
-      setScreenshotState(prev => ({ ...prev, error: null }));
+      setCombinedState(prev => ({ ...prev, error: null }));
 
       const userGoal = currentDestinationRef.current?.description || 'Focus on work';
       const currentTask = currentDestinationRef.current?.destination_name || 'Current task';
@@ -308,80 +176,105 @@ export const useAdvancedDistraction = ({
         cameraStreamRef.current || undefined
       );
 
-      setLastAnalysisResults(prev => ({ ...prev, screenshot: analysis }));
-      debugLog('SCREENSHOT', 'Analysis completed', { analysis });
+      setLastAnalysisResults(prev => ({ ...prev, combined: analysis }));
+      debugLog('COMBINED', 'Analysis completed', { 
+        contentRelevant: analysis.contentRelevant,
+        cameraAnalysis: analysis.cameraAnalysis,
+        distractionLevel: analysis.distractionLevel
+      });
 
       const currentTime = Date.now();
+      
+      // Check both content relevance AND camera presence/focus
       const contentIrrelevant = !analysis.contentRelevant && analysis.distractionLevel !== 'none';
+      const cameraIssues = !analysis.cameraAnalysis.personPresent || !analysis.cameraAnalysis.appearsFocused;
+      const hasDistraction = contentIrrelevant || cameraIssues;
 
-      if (contentIrrelevant) {
-        setScreenshotState(prev => {
+      if (hasDistraction) {
+        setCombinedState(prev => {
           if (!prev.startTime) {
-            debugLog('SCREENSHOT', 'Started tracking irrelevant content', { analysis });
+            debugLog('COMBINED', 'Started tracking distraction', { 
+              contentIrrelevant, 
+              cameraIssues,
+              cameraAnalysis: analysis.cameraAnalysis 
+            });
             return {
               ...prev,
               startTime: currentTime,
               lastCheck: currentTime,
-              confidenceLevel: analysis.confidenceLevel
+              confidenceLevel: analysis.confidenceLevel,
+              lastCameraAnalysis: analysis.cameraAnalysis,
+              lastScreenshotAnalysis: analysis
             };
           } else {
-            // Check if irrelevant content duration exceeds threshold
-            const irrelevantDuration = currentTime - prev.startTime;
+            // Check if distraction duration exceeds threshold
+            const distractionDuration = currentTime - prev.startTime;
             
-            if (irrelevantDuration > DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD && !prev.isDistracted) {
-              debugLog('SCREENSHOT', '🚨 Content distraction triggered!', { 
-                irrelevantDuration, 
+            if (distractionDuration > DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD && !prev.isDistracted) {
+              debugLog('COMBINED', '🚨 Combined distraction triggered!', { 
+                distractionDuration, 
                 threshold: DISTRACTION_THRESHOLDS.IRRELEVANT_CONTENT_THRESHOLD 
               });
 
               // Record distraction
               recordDistraction({
-                type: 'tab_switch',
+                type: cameraIssues ? 'camera_distraction' : 'tab_switch',
                 timestamp: prev.startTime,
               });
 
               return {
                 ...prev,
                 isDistracted: true,
-                confidenceLevel: analysis.confidenceLevel
+                confidenceLevel: analysis.confidenceLevel,
+                lastCameraAnalysis: analysis.cameraAnalysis,
+                lastScreenshotAnalysis: analysis
               };
             }
             
             return {
               ...prev,
               lastCheck: currentTime,
-              confidenceLevel: analysis.confidenceLevel
+              confidenceLevel: analysis.confidenceLevel,
+              lastCameraAnalysis: analysis.cameraAnalysis,
+              lastScreenshotAnalysis: analysis
             };
           }
         });
       } else {
-        // Content is relevant - clear content-related distraction
-        setScreenshotState(prev => {
+        // Both content and camera are good - clear distraction
+        setCombinedState(prev => {
           if (prev.isDistracted || prev.startTime) {
-            debugLog('SCREENSHOT', '✅ Content distraction cleared - relevant content detected', { analysis });
+            debugLog('COMBINED', '✅ Combined distraction cleared - all good', { 
+              contentRelevant: analysis.contentRelevant,
+              cameraAnalysis: analysis.cameraAnalysis 
+            });
           }
           return {
             ...prev,
             isDistracted: false,
             startTime: null,
             lastCheck: currentTime,
-            confidenceLevel: analysis.confidenceLevel
+            confidenceLevel: analysis.confidenceLevel,
+            lastCameraAnalysis: analysis.cameraAnalysis,
+            lastScreenshotAnalysis: analysis
           };
         });
       }
 
     } catch (error) {
-      debugLog('SCREENSHOT', '❌ Screenshot analysis failed', { error: error instanceof Error ? error.message : error });
-      setScreenshotState(prev => ({ 
+      debugLog('COMBINED', '❌ Combined analysis failed', { error: error instanceof Error ? error.message : error });
+      setCombinedState(prev => ({ 
         ...prev, 
-        error: error instanceof Error ? error.message : 'Screenshot analysis failed',
-        lastCheck: Date.now()
+        error: error instanceof Error ? error.message : 'Combined analysis failed',
+        lastCheck: Date.now(),
+        lastCameraAnalysis: null,
+        lastScreenshotAnalysis: null
       }));
     }
   }, [recordDistraction, debugLog]);
 
   /**
-   * INDEPENDENT: Check URL for blacklisted content
+   * Check URL for blacklisted content
    */
   const checkUrlForDistraction = useCallback(() => {
     const currentUrl = window.location.href;
@@ -501,13 +394,7 @@ export const useAdvancedDistraction = ({
     
     if (response === 'return_to_course') {
       // Clear all distraction states
-      setCameraState(prev => ({
-        ...prev,
-        isDistracted: false,
-        startTime: null
-      }));
-      
-      setScreenshotState(prev => ({
+      setCombinedState(prev => ({
         ...prev,
         isDistracted: false,
         startTime: null
@@ -522,7 +409,7 @@ export const useAdvancedDistraction = ({
     }
     
     // Record the response if there was an active distraction
-    const activeStartTime = cameraState.startTime || screenshotState.startTime || urlState.startTime;
+    const activeStartTime = combinedState.startTime || urlState.startTime;
     if (activeStartTime) {
       const duration = Date.now() - activeStartTime;
       await recordDistraction({
@@ -531,33 +418,27 @@ export const useAdvancedDistraction = ({
         duration,
       });
     }
-  }, [recordDistraction, debugLog, cameraState.startTime, screenshotState.startTime, urlState.startTime, distractionType]);
+  }, [recordDistraction, debugLog, combinedState.startTime, urlState.startTime, distractionType]);
 
-  // Main monitoring effect - sets up independent intervals
+  // Main monitoring effect - sets up intervals
   useEffect(() => {
     const shouldMonitor = isVoyageActive && !isExploringRef.current;
     setIsMonitoring(shouldMonitor);
 
     if (!shouldMonitor) {
       // Clear all intervals and reset states
-      if (cameraCheckInterval.current) clearInterval(cameraCheckInterval.current);
-      if (screenshotCheckInterval.current) clearInterval(screenshotCheckInterval.current);
+      if (combinedCheckInterval.current) clearInterval(combinedCheckInterval.current);
       if (urlCheckInterval.current) clearInterval(urlCheckInterval.current);
 
-      setCameraState({
-        isDistracted: false,
-        startTime: null,
-        lastCheck: Date.now(),
-        confidenceLevel: 0,
-        error: null
-      });
 
-      setScreenshotState({
+      setCombinedState({
         isDistracted: false,
         startTime: null,
         lastCheck: Date.now(),
         confidenceLevel: 0,
-        error: null
+        error: null,
+        lastCameraAnalysis: null,
+        lastScreenshotAnalysis: null
       });
 
       setUrlState({
@@ -567,55 +448,36 @@ export const useAdvancedDistraction = ({
         distractionType: null
       });
 
-      debugLog('SYSTEM', 'Monitoring stopped - all detection systems cleared');
+      debugLog('SYSTEM', 'Monitoring stopped - all detection cleared');
       return;
     }
 
-    debugLog('SYSTEM', 'Starting independent monitoring systems', {
+    debugLog('SYSTEM', 'Starting monitoring systems', {
       hasCamera: !!cameraStreamRef.current,
       geminiConfigured: GeminiService.isConfigured(),
       screenshotSupported: ScreenshotService.isSupported()
     });
 
-    // Set up INDEPENDENT camera monitoring
-    if (cameraStreamRef.current && GeminiService.isConfigured()) {
-      debugLog('CAMERA', 'Setting up camera monitoring');
-      cameraCheckInterval.current = setInterval(() => {
-        checkCameraForDistraction().catch(error => {
-          debugLog('CAMERA', '❌ Camera check error', { error });
-        });
-      }, DISTRACTION_THRESHOLDS.CAMERA_CHECK_INTERVAL);
-      
-      // Initial camera check
-      setTimeout(() => {
-        checkCameraForDistraction().catch(error => {
-          debugLog('CAMERA', '❌ Initial camera check error', { error });
-        });
-      }, 1000);
-    } else {
-      debugLog('CAMERA', 'Camera monitoring not available');
-    }
-
-    // Set up INDEPENDENT screenshot monitoring
+    // Set up combined screenshot + camera monitoring
     if (GeminiService.isConfigured() && ScreenshotService.isSupported()) {
-      debugLog('SCREENSHOT', 'Setting up screenshot monitoring');
-      screenshotCheckInterval.current = setInterval(() => {
-        checkScreenshotForDistraction().catch(error => {
-          debugLog('SCREENSHOT', '❌ Screenshot check error', { error });
+      debugLog('COMBINED', 'Setting up combined monitoring (60s interval)');
+      combinedCheckInterval.current = setInterval(() => {
+        checkCombinedForDistraction().catch(error => {
+          debugLog('COMBINED', '❌ Combined check error', { error });
         });
       }, DISTRACTION_THRESHOLDS.SCREENSHOT_INTERVAL);
       
-      // Initial screenshot check (after a delay to let things settle)
+      // Initial combined check (after a delay to let things settle)
       setTimeout(() => {
-        checkScreenshotForDistraction().catch(error => {
-          debugLog('SCREENSHOT', '❌ Initial screenshot check error', { error });
+        checkCombinedForDistraction().catch(error => {
+          debugLog('COMBINED', '❌ Initial combined check error', { error });
         });
       }, 5000);
     } else {
-      debugLog('SCREENSHOT', 'Screenshot monitoring not available');
+      debugLog('COMBINED', 'Combined monitoring not available');
     }
 
-    // Set up INDEPENDENT URL monitoring
+    // Set up URL monitoring
     debugLog('URL', 'Setting up URL monitoring');
     urlCheckInterval.current = setInterval(checkUrlForDistraction, 5000); // Check every 5 seconds
     
@@ -624,13 +486,12 @@ export const useAdvancedDistraction = ({
 
     // Cleanup function
     return () => {
-      if (cameraCheckInterval.current) clearInterval(cameraCheckInterval.current);
-      if (screenshotCheckInterval.current) clearInterval(screenshotCheckInterval.current);
+      if (combinedCheckInterval.current) clearInterval(combinedCheckInterval.current);
       if (urlCheckInterval.current) clearInterval(urlCheckInterval.current);
       
       debugLog('SYSTEM', 'Monitoring cleanup completed');
     };
-  }, [isVoyageActive, checkCameraForDistraction, checkScreenshotForDistraction, checkUrlForDistraction, debugLog]);
+  }, [isVoyageActive, checkCombinedForDistraction, checkUrlForDistraction, debugLog]);
 
   return {
     isDistracted,
@@ -641,27 +502,21 @@ export const useAdvancedDistraction = ({
     currentUrl: urlState.currentUrl,
     handleDistractionResponse,
     
-    // Diagnostic information for each detection method
+    // Diagnostic information
     diagnostics: {
       cameraAvailable: !!cameraStream,
       geminiConfigured: GeminiService.isConfigured(),
       screenshotSupported: ScreenshotService.isSupported(),
       
-      // Independent status for each detection method
-      camera: {
-        isActive: !!cameraCheckInterval.current,
-        isDistracted: cameraState.isDistracted,
-        lastCheck: cameraState.lastCheck,
-        error: cameraState.error,
-        confidenceLevel: cameraState.confidenceLevel
-      },
-      
-      screenshot: {
-        isActive: !!screenshotCheckInterval.current,
-        isDistracted: screenshotState.isDistracted,
-        lastCheck: screenshotState.lastCheck,
-        error: screenshotState.error,
-        confidenceLevel: screenshotState.confidenceLevel
+      // Combined status
+      combined: {
+        isActive: !!combinedCheckInterval.current,
+        isDistracted: combinedState.isDistracted,
+        lastCheck: combinedState.lastCheck,
+        error: combinedState.error,
+        confidenceLevel: combinedState.confidenceLevel,
+        lastCameraAnalysis: combinedState.lastCameraAnalysis,
+        lastScreenshotAnalysis: combinedState.lastScreenshotAnalysis
       },
       
       url: {

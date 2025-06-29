@@ -108,15 +108,25 @@ Be practical and avoid false positives. Brief moments of looking away or adjusti
 export const SCREENSHOT_ANALYSIS_PROMPT = `
 Analyze this screenshot to determine if the current screen content is relevant to the user's work goal.
 
+IMPORTANT: This screenshot may include both the main screen content AND a camera view (typically shown as a small video window). Please analyze BOTH:
+1. The main screen content for work relevance
+2. The camera view to check if the user is present and appears focused on their work
+
 User's overall goal: "{userGoal}"
 Current task/destination: "{currentTask}"
 Related apps for this task: {relatedApps}
 
-Look for:
+Look for in the MAIN SCREEN:
 1. Are they using applications/websites related to their task?
 2. Is the visible content relevant to their goal?
 3. Are there signs of distraction (social media, entertainment, unrelated browsing)?
 4. Is this a productive work environment?
+
+Look for in the CAMERA VIEW (if present):
+1. Is there a person visible in the camera view?
+2. Is the person facing toward the camera/screen (indicating they're looking at their work)?
+3. Are they in a focused posture (sitting upright, attention on screen)?
+4. Are there obvious signs of distraction (looking away, talking on phone, using mobile device, etc.)?
 
 Common distracting patterns to watch for:
 - Social media sites (Facebook, Twitter, Instagram, TikTok, etc.)
@@ -125,6 +135,9 @@ Common distracting patterns to watch for:
 - News sites (unless research-related)
 - Gaming websites/applications
 - Messaging apps used excessively
+- User not present in camera view when they should be working
+- User looking at phone/mobile device instead of screen
+- User facing away from screen or appearing distracted in camera view
 
 Return a JSON response with:
 {
@@ -133,10 +146,15 @@ Return a JSON response with:
   "detectedApps": ["list", "of", "visible", "apps/sites"],
   "distractionLevel": "none" | "mild" | "moderate" | "high",
   "reasoning": "Brief explanation of your assessment",
-  "suggestedAction": "continue" | "gentle_reminder" | "intervention_needed"
+  "suggestedAction": "continue" | "gentle_reminder" | "intervention_needed",
+  "cameraAnalysis": {
+    "personPresent": boolean,
+    "appearsFocused": boolean,
+    "cameraObservations": "Brief description of what you see in the camera view"
+  }
 }
 
-Be practical - brief moments of checking messages or looking up references are normal parts of work.
+Be practical - brief moments of checking messages, looking up references, or adjusting position are normal parts of work.
 `.trim();
 
 // ============================================================================
@@ -211,7 +229,7 @@ export const PRODUCTIVITY_WHITELIST = [
  * All values are in milliseconds.
  */
 export const DISTRACTION_THRESHOLDS = {
-  // How long someone can be away from camera before it's considered a distraction
+  // How long someone can be away from camera/unfocused before it's considered a distraction
   CAMERA_ABSENCE_THRESHOLD: 5 * 60 * 1000, // 5 minutes
   
   // How long someone can be on blacklisted content before it's considered a distraction  
@@ -220,11 +238,8 @@ export const DISTRACTION_THRESHOLDS = {
   // How long someone can be on irrelevant content before it's considered a distraction
   IRRELEVANT_CONTENT_THRESHOLD: 5 * 60 * 1000, // 5 minutes
   
-  // How often to check camera for person detection
-  CAMERA_CHECK_INTERVAL: 30 * 1000, // 30 seconds
-  
   // How often to take and analyze screenshots
-  SCREENSHOT_INTERVAL: 60 * 1000, // 1 minute
+  SCREENSHOT_INTERVAL: 60 * 1000, // 60 seconds (now includes camera analysis)
   
   // Grace period for brief distractions (won't count as distraction if shorter)
   GRACE_PERIOD: 30 * 1000, // 30 seconds

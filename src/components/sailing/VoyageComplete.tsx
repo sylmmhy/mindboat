@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Trophy, Clock, AlertTriangle, MapPin, ArrowRight, Loader2, TrendingUp, Target } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { formatPreciseDuration, millisecondsToMinutes } from '../../utils/precisionTimer';
+import { formatPreciseDuration } from '../../utils/precisionTimer';
 import { supabase } from '../../lib/supabase';
 import type { Destination } from '../../types';
 
@@ -236,21 +236,16 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
   const destination = voyageData.destination;
   const hasExplorationNotes = exploration_notes && exploration_notes.length > 0;
 
-  const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours > 0) {
-      return `${hours}h ${mins}m`;
-    }
-    return `${mins}m`;
-  };
-
   const formatPreciseDurationInMinutes = (minutes: number) => {
     // Convert minutes to milliseconds for precision formatting
     const milliseconds = minutes * 60 * 1000;
     return formatPreciseDuration(milliseconds);
   };
 
+  const formatDuration = (minutes: number) => {
+    // Use high-precision formatting for all durations
+    return formatPreciseDurationInMinutes(minutes);
+  };
   const getPerformanceMessage = () => {
     const focusScore = voyage.focus_quality_score || 0;
     const distractionCount = voyage.distraction_count || 0;
@@ -323,9 +318,12 @@ export const VoyageComplete: React.FC<VoyageCompleteProps> = ({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="text-center">
                 <Clock className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-gray-800">
-                  {formatDuration(voyage.actual_duration || 0)}
-                </p>
+                <div>
+                  <p className="text-2xl font-bold text-gray-800">
+                    {formatDuration(voyage.actual_duration || 0)}
+                  </p>
+                  <p className="text-xs text-gray-500">High Precision</p>
+                </div>
                 <p className="text-sm text-gray-600">Actual Duration</p>
               </div>
               
