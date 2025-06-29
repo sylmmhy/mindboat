@@ -147,6 +147,11 @@ Return a JSON response with:
   "distractionLevel": "none" | "mild" | "moderate" | "high",
   "reasoning": "Brief explanation of your assessment for both main screen and camera view",
   "suggestedAction": "continue" | "gentle_reminder" | "intervention_needed",
+  "screenAnalysis": {
+    "contentType": "description of main screen content (e.g., 'code editor', 'web browser', 'document')",
+    "isProductiveContent": boolean,
+    "screenObservations": "Brief description of what you see on the main screen"
+  },
   "cameraAnalysis": {
     "personPresent": boolean,
     "appearsFocused": boolean,

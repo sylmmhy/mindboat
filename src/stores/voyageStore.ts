@@ -12,6 +12,7 @@ interface VoyageState {
   startTime: Date | null;
   isLoading: boolean;
   error: string | null;
+  lastDistractionTime: number | null;  // Track last distraction to prevent rapid duplicates
 
   // Actions
   startVoyage: (destinationId: string, userId: string, plannedDuration?: number) => Promise<void>;
@@ -19,7 +20,13 @@ interface VoyageState {
   recordDistraction: (event: DistractionDetectionEvent) => Promise<void>;
   loadVoyageHistory: (userId: string) => Promise<void>;
   resetVoyageState: () => void;
+  
+  // Internal helper for debounced distraction recording
+  _shouldRecordDistraction: (timestamp: number) => boolean;
 }
+
+// Configuration for distraction debouncing
+const DISTRACTION_DEBOUNCE_MS = 5000; // 5 seconds - can be modified
 
 export const useVoyageStore = create<VoyageState>()(
   subscribeWithSelector((set, get) => ({
@@ -30,6 +37,7 @@ export const useVoyageStore = create<VoyageState>()(
   startTime: null,
   isLoading: false,
   error: null,
+  lastDistractionTime: null,
 
   startVoyage: async (destinationId, userId, plannedDuration) => {
     set({ isLoading: true, error: null });
@@ -77,6 +85,9 @@ export const useVoyageStore = create<VoyageState>()(
           startTime,
         });
 
+        // Reset distraction tracking for new voyage
+        set({ lastDistractionTime: null });
+
         return;
       }
 
@@ -86,6 +97,10 @@ export const useVoyageStore = create<VoyageState>()(
         distractionCount: 0,
         startTime,
       });
+
+      // Reset distraction tracking for new voyage
+      set({ lastDistractionTime: null });
+
     } catch (error) {
       console.error('Failed to start voyage:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to start voyage' });
@@ -204,12 +219,57 @@ export const useVoyageStore = create<VoyageState>()(
     }
   },
 
+  _shouldRecordDistraction: (timestamp: number): boolean => {
+    const { lastDistractionTime } = get();
+    
+    // Always record if this is the first distraction
+    if (!lastDistractionTime) {
+      return true;
+    }
+    
+    // Only record if enough time has passed since last distraction
+    const timeSinceLastDistraction = timestamp - lastDistractionTime;
+    const shouldRecord = timeSinceLastDistraction >= DISTRACTION_DEBOUNCE_MS;
+    
+    if (import.meta.env.DEV) {
+      console.log(`🔄 [DEBOUNCE] Distraction debounce check:`, {
+        shouldRecord,
+        timeSinceLastDistraction: `${Math.round(timeSinceLastDistraction / 1000)}s`,
+        debounceThreshold: `${DISTRACTION_DEBOUNCE_MS / 1000}s`,
+        lastDistractionTime: new Date(lastDistractionTime).toLocaleTimeString()
+      });
+    }
+    
+    return shouldRecord;
+  },
+
   recordDistraction: async (event) => {
     const { currentVoyage } = get();
     if (!currentVoyage) return;
 
-    // Always increment local counter immediately
-    set(state => ({ distractionCount: state.distractionCount + 1 }));
+    // Check if we should record this distraction (debouncing)
+    const shouldRecord = get()._shouldRecordDistraction(event.timestamp);
+    
+    if (!shouldRecord) {
+      if (import.meta.env.DEV) {
+        console.log(`⏭️ [DEBOUNCE] Skipping distraction - too soon after last one`);
+      }
+      return;
+    }
+
+    // Record this distraction timestamp and increment counter
+    set(state => ({ 
+      distractionCount: state.distractionCount + 1,
+      lastDistractionTime: event.timestamp
+    }));
+
+    if (import.meta.env.DEV) {
+      console.log(`📊 [DISTRACTION] Recorded new distraction (#${get().distractionCount})`, {
+        type: event.type,
+        timestamp: new Date(event.timestamp).toLocaleTimeString(),
+        duration: event.duration ? `${Math.round(event.duration / 1000)}s` : 'ongoing'
+      });
+    }
 
     try {
       // Try to save to database
@@ -294,6 +354,7 @@ export const useVoyageStore = create<VoyageState>()(
       isVoyageActive: false,
       distractionCount: 0,
       startTime: null,
+      lastDistractionTime: null,
       error: null,
     });
   },

@@ -477,6 +477,12 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                             {diagnostics.combined.lastCameraAnalysis.appearsFocused ? ' ✅ Focused' : ' ❌ Distracted'}</p>
                           </div>
                         )}
+                        {diagnostics.combined?.lastScreenshotAnalysis?.screenAnalysis && (
+                          <div className="mt-1 text-xs text-green-600">
+                            <p>🖥️ Screen: {diagnostics.combined.lastScreenshotAnalysis.screenAnalysis.contentType} | 
+                            {diagnostics.combined.lastScreenshotAnalysis.screenAnalysis.isProductiveContent ? ' ✅ Productive' : ' ❌ Distracting'}</p>
+                          </div>
+                        )}
                          {diagnostics.url?.currentUrl && (
                            <div className="mt-2 text-xs text-gray-600">
                              <p>🔗 Current URL: {diagnostics.url.currentUrl.length > 50 ? 
@@ -485,14 +491,22 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                              <p>URL Status: {diagnostics.url?.isDistracted ? '🚨 Distracting' : '✅ Relevant'}</p>
                            </div>
                          )}
+                        {(diagnostics.combined?.lastScreenshotAnalysis?.distractionLevel && 
+                          diagnostics.combined.lastScreenshotAnalysis.distractionLevel !== 'none') && (
+                          <div className="mt-1 text-xs text-orange-600">
+                            <p>⚠️ Distraction Level: {diagnostics.combined.lastScreenshotAnalysis.distractionLevel}</p>
+                            <p>💡 Suggested Action: {diagnostics.combined.lastScreenshotAnalysis.suggestedAction}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="mt-2 pt-2 border-t text-xs text-gray-400">
                       <p>🔍 Active Detection Systems:</p>
                       <p>• Tab switch detection (instant)</p>
-                      <p>• URL blacklist monitoring (5min timeout)</p>
-                      <p>• Combined screenshot + camera analysis (60s)</p>
+                      <p>• URL blacklist monitoring (15s timeout for testing)</p>
+                      <p>• Combined screenshot + camera analysis (60s interval)</p>
                       <p>• Idle detection (90s timeout)</p>
+                      <p>• Debouncing: 5s minimum between distractions</p>
                     </div>
                   </div>
                 </div>

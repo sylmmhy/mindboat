@@ -197,38 +197,49 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
     if (!shouldMonitor) return;
     
     const isHidden = document.hidden;
-    debugLog('👁️ [TAB SWITCH] Visibility change detected', { 
+    
+    // CRITICAL: Always log the actual visibility state, not what we think it should be
+    debugLog('👁️ [TAB SWITCH] ACTUAL visibility change detected', { 
       hidden: isHidden,
+      documentHidden: document.hidden,
+      documentVisibilityState: document.visibilityState,
       timestamp: new Date().toISOString(),
       voyageActive: isVoyageActive,
-      exploring: isExploring
+      exploring: isExploring,
+      currentUrl: window.location.href
     });
     
     if (isHidden) {
       // Tab became hidden - user switched away
-      debugLog('🚨 [TAB SWITCH] User switched away from tab - starting distraction timer');
+      debugLog('🚨 [TAB SWITCH] User DEFINITELY switched away from tab - starting 5s timer');
       distractionStartTime.current = Date.now();
       setLastDistractionType('tab_switch');
       
-      // Set timeout to 5 seconds for detection
+      // Set timeout to 5 seconds for detection (critical - this should always fire if user stays away)
       distractionTimeoutRef.current = setTimeout(() => {
         if (!isDistractedRef.current) {
-          debugLog('⚠️ [TAB SWITCH] Distraction triggered after 5 second timeout');
+          debugLog('⚠️ [TAB SWITCH] 🚨 DISTRACTION TRIGGERED! User away for 5+ seconds');
           setIsDistracted(true);
           // Record the start of distraction immediately
           recordDistraction({
             type: 'tab_switch',
             timestamp: distractionStartTime.current!,
           });
+        } else {
+          debugLog('⚠️ [TAB SWITCH] Timer expired but distraction already active');
         }
       }, 5000);
     } else {
       // Tab became visible - user returned
-      debugLog('✅ [TAB SWITCH] User returned to tab');
+      debugLog('✅ [TAB SWITCH] User RETURNED to tab', {
+        hadTimeout: !!distractionTimeoutRef.current,
+        wasDistracted: isDistractedRef.current,
+        timeAway: distractionStartTime.current ? `${Math.round((Date.now() - distractionStartTime.current) / 1000)}s` : 'N/A'
+      });
       
       if (distractionTimeoutRef.current) {
         clearTimeout(distractionTimeoutRef.current);
-        debugLog('🔄 [TAB SWITCH] Cleared distraction timeout - user returned quickly');
+        debugLog('🔄 [TAB SWITCH] Cleared distraction timeout - user returned quickly (< 5s)');
       } else {
         debugLog('🔄 [TAB SWITCH] No timeout to clear - distraction may have already been triggered');
       }
@@ -284,6 +295,12 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
   const handleActivity = useCallback(() => {
     if (!shouldMonitor) return;
     
+    debugLog('🎯 [ACTIVITY] User activity detected', {
+      type: 'mouse/keyboard',
+      currentUrl: window.location.href,
+      tabVisible: !document.hidden
+    });
+    
     lastActivityTime.current = Date.now();
     
     // Check URL on activity to catch any navigation
@@ -327,11 +344,12 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
 
   // Enhanced distraction detection with multiple methods
   useEffect(() => {
-    debugLog('🎯 [DISTRACTION] Monitoring effect triggered', { 
+    debugLog('🎯 [DISTRACTION] Monitoring setup triggered', { 
       shouldMonitor, 
       isExploring, 
       isVoyageActive,
-      destination: currentDestination?.destination_name 
+      destination: currentDestination?.destination_name,
+      currentUrl: window.location.href
     });
     
     if (!shouldMonitor) {
@@ -365,6 +383,18 @@ export const useDistraction = ({ isExploring = false, currentDestination }: UseD
     
     // Event listeners for tab switching and activity
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Add additional debugging for visibility state
+    const logVisibilityState = () => {
+      debugLog('👁️ [INIT] Initial visibility state', {
+        hidden: document.hidden,
+        visibilityState: document.visibilityState,
+        hasFocus: document.hasFocus(),
+        currentUrl: window.location.href
+      });
+    };
+    logVisibilityState();
+    
     document.addEventListener('mousemove', handleActivity);
     document.addEventListener('keydown', handleActivity);
     document.addEventListener('click', handleActivity);

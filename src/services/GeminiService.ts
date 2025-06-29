@@ -221,6 +221,11 @@ export class GeminiService {
             distractionLevel: result.distractionLevel || 'none',
             reasoning: result.reasoning || 'No reasoning provided',
             suggestedAction: result.suggestedAction || 'continue',
+            screenAnalysis: result.screenAnalysis || {
+              contentType: 'unknown',
+              isProductiveContent: true,
+              screenObservations: 'Screen analysis not available'
+            },
             cameraAnalysis: result.cameraAnalysis || {
               personPresent: true,
               appearsFocused: true,
@@ -244,6 +249,11 @@ export class GeminiService {
         distractionLevel: hasDistraction ? 'moderate' : 'none',
         reasoning: responseText.substring(0, 200),
         suggestedAction: hasDistraction ? 'gentle_reminder' : 'continue',
+        screenAnalysis: {
+          contentType: 'web content',
+          isProductiveContent: !hasDistraction,
+          screenObservations: 'Fallback analysis - screen content parsed from text'
+        },
         cameraAnalysis: {
           personPresent: true,
           appearsFocused: true,
@@ -262,6 +272,11 @@ export class GeminiService {
         distractionLevel: 'none',
         reasoning: `Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         suggestedAction: 'continue',
+        screenAnalysis: {
+          contentType: 'unknown',
+          isProductiveContent: true,
+          screenObservations: 'Analysis failed - no screen data'
+        },
         cameraAnalysis: {
           personPresent: true,
           appearsFocused: true,
