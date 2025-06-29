@@ -690,7 +690,7 @@ export const useAdvancedDistraction = ({
   };
 
   // Dynamically check screen sharing availability
-  React.useEffect(() => {
+  useEffect(() => {
     const checkScreenSharing = async () => {
       try {
         const { ScreenshotService } = await import('../services/ScreenshotService');
