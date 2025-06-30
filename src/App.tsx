@@ -12,7 +12,6 @@ import { useUserStore } from './stores/userStore';
 import { useDestinationStore } from './stores/destinationStore';
 import { useVoyageStore } from './stores/voyageStore';
 import { useNotificationStore } from './stores/notificationStore';
-import { ScreenshotService } from './services/ScreenshotService';
 import type { Destination } from './types';
 import { setupDebugTool } from './utils/debugDistraction';
 
@@ -31,7 +30,7 @@ function App() {
   } = useUserStore();
 
   const { destinations, loadDestinations } = useDestinationStore();
-  const { currentVoyage, voyageHistory, startVoyage, endVoyage, resetVoyageState } = useVoyageStore();
+  const { currentVoyage, voyageHistory, startVoyage, endVoyage } = useVoyageStore();
   const { showSuccess, showError } = useNotificationStore();
 
   const [appState, setAppState] = useState<AppState>('auth');
@@ -96,36 +95,6 @@ function App() {
       showError(authError, 'Authentication Error');
     }
   }, [authError, initializationComplete, showError]);
-
-  // CRITICAL: App-level cleanup to stop screen sharing when navigating away from sailing
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      console.log('🛑 [APP] App closing - stopping screen sharing...');
-      ScreenshotService.stopScreenSharing();
-      resetVoyageState();
-    };
-
-    // Global cleanup on app unmount or route changes away from sailing
-    const handleRouteChange = () => {
-      if (appState !== 'sailing') {
-        console.log('🛑 [APP] Navigating away from sailing - stopping screen sharing...');
-        ScreenshotService.stopScreenSharing();
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    // Call route change handler when app state changes
-    handleRouteChange();
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      // Final cleanup on app unmount
-      console.log('🛑 [APP] App unmounting - final cleanup...');
-      ScreenshotService.stopScreenSharing();
-      resetVoyageState();
-    };
-  }, [appState, resetVoyageState]);
 
   // Show loading screen during initialization
   if (!initializationComplete || isLoading) {
@@ -198,7 +167,7 @@ function App() {
       const { distractionCount } = useVoyageStore.getState();
 
       try {
-        // End the voyage in the store (this will automatically stop screen sharing)
+        // End the voyage in the store
         const updatedVoyage = await endVoyage();
 
         // Remove verbose success notification - voyage completion is self-evident

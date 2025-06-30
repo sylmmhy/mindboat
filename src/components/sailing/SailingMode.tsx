@@ -14,7 +14,6 @@ import { useAdvancedDistraction } from '../../hooks/useAdvancedDistraction';
 import { useAudio } from '../../hooks/useAudio';
 import { useVoiceInteraction } from '../../hooks/useVoiceInteraction';
 import { useNotificationStore } from '../../stores/notificationStore';
-import { ScreenshotService } from '../../services/ScreenshotService';
 import {
   getHighPrecisionTime,
   formatPreciseDuration,
@@ -262,18 +261,13 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   }, [isDistracted, isExploring]);
 
   const handleEndVoyage = useCallback(async () => {
-    console.log('🛑 [SAILING] User ending voyage manually...');
-
     // Announce voyage completion with voice if enabled
     if (isVoiceEnabled && destination) {
       const duration = formatPreciseDuration(elapsedTime);
       await announceVoyageCompletion(destination.destination_name, duration);
     }
 
-    // End voyage (this will automatically stop screen sharing via the store)
     await endVoyage();
-    
-    // Navigate to completion screen
     onEndVoyage();
   }, [endVoyage, onEndVoyage, isVoiceEnabled, destination, elapsedTime, announceVoyageCompletion]);
 
@@ -292,45 +286,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
   const handleCameraStream = useCallback((stream: MediaStream | null) => {
     setCameraStream(stream);
     setCameraPermissionGranted(!!stream);
-  }, []);
-
-  // CRITICAL: Component cleanup effect to stop screen sharing
-  useEffect(() => {
-    // This cleanup effect runs when the component unmounts or the user navigates away
-    return () => {
-      console.log('🛑 [SAILING] SailingMode component unmounting - stopping screen sharing...');
-      ScreenshotService.stopScreenSharing();
-      
-      // Also stop audio
-      stopAmbientSound();
-      
-      console.log('✅ [SAILING] Cleanup completed - screen sharing and audio stopped');
-    };
-  }, [stopAmbientSound]);
-
-  // Additional cleanup for route changes or browser close
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      console.log('🛑 [SAILING] Browser closing/refreshing - stopping screen sharing...');
-      ScreenshotService.stopScreenSharing();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        // User might be closing the tab or switching away - this is not always navigation
-        // So we don't stop screen sharing here, only on actual component unmount
-        console.log('📄 [SAILING] Page hidden, but keeping screen sharing active');
-      }
-    };
-
-    // Listen for browser close/refresh
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
   }, []);
 
   // Format time with high precision
@@ -464,11 +419,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
               <span className="text-white text-sm">🎤 Voice Assistant</span>
             </div>
           )}
-          {ScreenshotService.isPermissionGranted() && (
-            <div className="bg-orange-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
-              <span className="text-white text-sm">🖥️ Screen Monitoring</span>
-            </div>
-          )}
           {/* Show distraction alert status for debugging */}
           {import.meta.env.DEV && showDistractionAlert && (
             <div className="bg-red-500/80 backdrop-blur-sm rounded-lg px-4 py-2">
@@ -570,12 +520,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
                       <span className="font-medium text-gray-700">Mode:</span>
                       <span className={`ml-2 ${isExploring ? 'text-purple-600' : 'text-blue-600'}`}>
                         {isExploring ? 'Exploration' : 'Focus'}
-                      </span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="font-medium text-gray-700">Screen Share:</span>
-                      <span className={`ml-2 ${ScreenshotService.isPermissionGranted() ? 'text-green-600' : 'text-gray-500'}`}>
-                        {ScreenshotService.isPermissionGranted() ? 'Active' : 'Inactive'}
                       </span>
                     </div>
 
@@ -685,11 +629,6 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
           {!voiceStatus.features.elevenLabs && voiceStatus.features.speechRecognition && (
             <p className="text-yellow-300 text-xs text-center mt-2">
               💡 Add ElevenLabs API key for AI voice responses
-            </p>
-          )}
-          {ScreenshotService.isPermissionGranted() && (
-            <p className="text-green-200 text-xs text-center mt-2">
-              🖥️ Screen monitoring active - will auto-stop when voyage ends
             </p>
           )}
           {import.meta.env.DEV && (
