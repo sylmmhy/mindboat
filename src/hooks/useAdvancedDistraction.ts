@@ -10,7 +10,7 @@
  * All detection methods work together to provide comprehensive distraction monitoring.
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useVoyageStore } from '../stores/voyageStore';
 import { useUserStore } from '../stores/userStore';
 import { GeminiService } from '../services/GeminiService';
@@ -72,8 +72,8 @@ interface CombinedDetectionState {
   lastCheck: number;
   confidenceLevel: number;
   error: string | null;
-  lastCameraAnalysis: any;
-  lastScreenshotAnalysis: any;
+  lastCameraAnalysis: unknown;
+  lastScreenshotAnalysis: unknown;
   isActive: boolean;
 }
 
@@ -81,7 +81,7 @@ interface UrlDetectionState {
   isDistracted: boolean;
   startTime: number | null;
   currentUrl: string;
-  distractionType: 'blacklisted_content' | 'irrelevant_content' | null;
+  distractionType: 'blacklisted_content' | 'irrelevant_browsing' | null;
 }
 
 export const useAdvancedDistraction = ({
@@ -134,21 +134,25 @@ export const useAdvancedDistraction = ({
 
   // Refs for state tracking
   const isExploringRef = useRef(isExploring);
+  const isVoyageActiveRef = useRef(isVoyageActive);
+  const destinationRef = useRef(currentDestination);
   const lastUrlRef = useRef(window.location.href);
   const lastActivityTime = useRef<number>(Date.now());
   const idleTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Update exploring ref when state changes
+  // Sync refs with props
   useEffect(() => {
     isExploringRef.current = isExploring;
-  }, [isExploring]);
+    isVoyageActiveRef.current = isVoyageActive;
+    destinationRef.current = currentDestination;
+  }, [isExploring, isVoyageActive, currentDestination]);
 
-  // Debug logging function
+  // Debug logging function - memoized to prevent infinite loops
   const debugLog = useCallback((category: string, message: string, data?: any) => {
     if (import.meta.env.DEV) {
       console.log(`[${category.toUpperCase()}] ${message}`, data || '');
     }
-  }, []);
+  }, []); // Empty dependency array to prevent recreation
 
   // Tab switching detection using Page Visibility API
   const handleVisibilityChange = useCallback(() => {
@@ -239,6 +243,7 @@ export const useAdvancedDistraction = ({
             return {
               ...prev,
               isDistracted: true,
+              isTabHidden: false
             };
           }
           else if (duration < 5000) {
@@ -248,11 +253,21 @@ export const useAdvancedDistraction = ({
           }
         }
 
-        // Return a non-distracted state for quick returns or fallback
+        // If already distracted, preserve the distracted state when returning to tab
+        if (prev.isDistracted) {
+          debugLog('TAB_SWITCH', 'Preserving existing distraction state on return');
+          return {
+            ...prev,
+            isTabHidden: false
+          };
+        }
+
+        // Only clear distraction state for quick returns with no existing distraction
         return {
           ...prev,
           isDistracted: false,
           startTime: null,
+          isTabHidden: false
         };
       });
 
@@ -302,7 +317,7 @@ export const useAdvancedDistraction = ({
     }
 
     // Check if task-related (simplified check)
-    const isTaskRelated = currentDestination?.related_apps?.some((app: string) =>
+    const isTaskRelated = destinationRef.current?.related_apps?.some((app: string) =>
       currentUrl.toLowerCase().includes(app.toLowerCase())
     ) || false;
 
@@ -313,7 +328,7 @@ export const useAdvancedDistraction = ({
         isDistracted: true,
         startTime: Date.now(),
         currentUrl,
-        distractionType: distractionType as 'blacklisted_content' | 'irrelevant_content'
+        distractionType: distractionType as 'blacklisted_content' | 'irrelevant_browsing'
       }));
 
       recordDistraction({
@@ -419,8 +434,8 @@ export const useAdvancedDistraction = ({
       const analysis = await GeminiService.analyzeScreenshot(
         screenshot.blob,
         user?.lighthouse_goal || 'Focus on work',
-        currentDestination?.destination_name || 'Focus task',
-        currentDestination?.related_apps || []
+        destinationRef.current?.destination_name || 'Focus task',
+        destinationRef.current?.related_apps || []
       );
 
       if (analysis) {
@@ -540,7 +555,7 @@ export const useAdvancedDistraction = ({
     debugLog('SYSTEM', 'Starting comprehensive monitoring systems', {
       hasCamera: !!cameraStream,
       currentUrl: window.location.href,
-      destination: currentDestination?.destination_name
+      destination: destinationRef.current?.destination_name
     });
 
     // Initialize activity tracking
@@ -608,13 +623,13 @@ export const useAdvancedDistraction = ({
       if (distractionTimeoutRef.current) clearTimeout(distractionTimeoutRef.current);
       if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
     };
-  }, [isVoyageActive, isExploring, handleVisibilityChange, handleActivity, checkUrlChange, performCombinedAnalysis, recordDistraction, debugLog, cameraStream, currentDestination]);
+  }, [isVoyageActive, isExploring, handleVisibilityChange, handleActivity, checkUrlChange, performCombinedAnalysis, recordDistraction, cameraStream, currentDestination]);
 
   /**
    * Handle user response to distraction alert
    */
   const handleDistractionResponse = useCallback(async (response: 'return_to_course' | 'exploring') => {
-    debugLog('RESPONSE', 'Handling distraction response', { response });
+    console.log('[RESPONSE] Handling distraction response', { response });
 
     if (response === 'return_to_course') {
       // Clear all distraction states
@@ -650,59 +665,54 @@ export const useAdvancedDistraction = ({
         });
       }, 0);
     }
-  }, [recordDistraction, debugLog, tabSwitchState.startTime, combinedState.startTime, urlState.startTime]);
+  }, [recordDistraction, tabSwitchState.startTime, combinedState.startTime, urlState.startTime]);
 
   // Helper function to determine dominant distraction type
-  const getDominantDistractionType = () => {
+  const getDominantDistractionType = useCallback(() => {
     if (tabSwitchState.isDistracted) return 'tab_switch';
     if (urlState.isDistracted) return urlState.distractionType || 'tab_switch';
     if (combinedState.isDistracted) return 'camera_distraction';
     return 'tab_switch';
-  };
+  }, [tabSwitchState.isDistracted, urlState.isDistracted, urlState.distractionType, combinedState.isDistracted]);
 
   // 🔧 KEY FIX: Combined distraction state - THIS IS THE CRITICAL PART
   const isDistracted = tabSwitchState.isDistracted || combinedState.isDistracted || urlState.isDistracted;
   const distractionType = getDominantDistractionType();
 
-  // 🔧 DEBUG: Log distraction state changes
+  // 🔧 DEBUG: Log distraction state changes (optimized to prevent excessive logging)
+  const prevDistractionStateRef = useRef({ isDistracted: false, distractionType: 'tab_switch' as const });
   useEffect(() => {
-    debugLog('DISTRACTION_STATE', '🚨 Distraction state changed', {
-      isDistracted,
-      distractionType,
-      tabSwitch: tabSwitchState.isDistracted,
-      combined: combinedState.isDistracted,
-      url: urlState.isDistracted,
-      isExploring,
-      timestamp: new Date().toISOString()
-    });
-  }, [isDistracted, distractionType, tabSwitchState.isDistracted, combinedState.isDistracted, urlState.isDistracted, isExploring, debugLog]);
+    const currentState = { isDistracted, distractionType };
+    const prevState = prevDistractionStateRef.current;
 
-  // Diagnostics for debugging
-  const diagnostics = {
+    // Only log if the state actually changed
+    if (currentState.isDistracted !== prevState.isDistracted ||
+      currentState.distractionType !== prevState.distractionType) {
+      console.log('[DISTRACTION_STATE] 🚨 Distraction state changed', {
+        isDistracted,
+        distractionType,
+        tabSwitch: tabSwitchState.isDistracted,
+        combined: combinedState.isDistracted,
+        url: urlState.isDistracted,
+        isExploring,
+        timestamp: new Date().toISOString()
+      });
+      prevDistractionStateRef.current = currentState;
+    }
+  }, [isDistracted, distractionType, tabSwitchState.isDistracted, combinedState.isDistracted, urlState.isDistracted, isExploring]);
+
+  // Memoized diagnostics to prevent unnecessary re-renders
+  const diagnostics = useMemo(() => ({
     tabSwitch: tabSwitchState,
     combined: combinedState,
     url: urlState,
     monitoring: isMonitoring,
     voyageActive: isVoyageActive,
     exploring: isExploring,
-    // Add missing properties that SailingMode.tsx expects
     geminiConfigured: GeminiService.isConfigured(),
     cameraAvailable: !!cameraStream,
-    screenSharingAvailable: false // Will be set dynamically
-  };
-
-  // Dynamically check screen sharing availability
-  useEffect(() => {
-    const checkScreenSharing = async () => {
-      try {
-        const { ScreenshotService } = await import('../services/ScreenshotService');
-        diagnostics.screenSharingAvailable = ScreenshotService.isPermissionGranted();
-      } catch (error) {
-        diagnostics.screenSharingAvailable = false;
-      }
-    };
-    checkScreenSharing();
-  }, []);
+    screenSharingAvailable: false // Simplified for performance
+  }), [tabSwitchState, combinedState, urlState, isMonitoring, isVoyageActive, isExploring, cameraStream]);
 
   return {
     isDistracted,
