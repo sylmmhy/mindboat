@@ -593,6 +593,8 @@ export const SailingMode: React.FC<SailingModeProps> = ({ destination, onEndVoya
         distractionType={(distractionType as 'tab_switch' | 'idle' | 'camera_distraction' | 'camera_absence' | 'blacklisted_content' | 'irrelevant_content') || 'tab_switch'}
         duration={elapsedTime}
         enableVoice={isVoiceEnabled}
+        isVoyageActive={!!currentVoyage}
+        isExploring={isExploring}
       />
 
       {/* Exploration Mode */}
