@@ -176,6 +176,7 @@ Return a JSON response with:
     "cameraObservations": "Brief description of what you see in the camera view"
     "physicalDistraction": "string (eating_drinking, phone_usage, conversation, looking_away, or null)"
   }
+  "alert": "I've seen that you have been off the road because of {distractionType}, do you want to return to the main road or start explroing？"
 }
 
 Be practical - brief moments of checking messages, looking up references, or adjusting position are normal parts of work.
