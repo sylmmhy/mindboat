@@ -252,6 +252,33 @@ function App() {
 
       {/* Global Notification System */}
       <NotificationSystem />
+
+      {/* Sponsors and Hackathon Footer */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm shadow-lg p-3 z-50">
+        <div className="container mx-auto flex flex-wrap justify-center items-center gap-6">
+          <div className="text-sm text-gray-500 font-medium">Powered by:</div>
+          <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
+            <img src="/anthropic.svg" alt="Anthropic Logo" className="h-8" />
+          </a>
+          <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
+            <img src="/11labs.svg" alt="ElevenLabs Logo" className="h-8" />
+          </a>
+          <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
+            <img src="/logo-color.svg" alt="Hackathon Logo" className="h-8" />
+          </a>
+          <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
+            <img src="/logo-color2.svg" alt="Hackathon Logo" className="h-8" />
+          </a>
+          <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
+            <img src="/logo-color3.svg" alt="Hackathon Logo" className="h-8" />
+          </a>
+          <div className="text-xs text-gray-400">
+            <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-500 underline">
+              Built with Bolt.new
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
