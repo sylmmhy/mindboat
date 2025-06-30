@@ -3,6 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 import { useNotificationStore } from './notificationStore';
 import { getHighPrecisionTime, calculatePreciseDuration } from '../utils/precisionTimer';
+import { ScreenshotService } from '../services/ScreenshotService';
 import type { Voyage, DistractionDetectionEvent } from '../types';
 
 interface VoyageState {
@@ -129,6 +130,10 @@ export const useVoyageStore = create<VoyageState>()(
     set({ isLoading: true, error: null });
 
     try {
+      // Stop screen sharing immediately when voyage ends
+      console.log('🛑 [VOYAGE] Ending voyage - stopping screen sharing...');
+      ScreenshotService.stopScreenSharing();
+
       const endTime = new Date();
       const preciseEndTime = getHighPrecisionTime();
 
@@ -161,6 +166,7 @@ export const useVoyageStore = create<VoyageState>()(
           voyageHistory: [updatedVoyage, ...state.voyageHistory],
         }));
 
+        console.log('✅ [VOYAGE] Local voyage ended and screen sharing stopped');
         return updatedVoyage;
       }
 
@@ -199,6 +205,7 @@ export const useVoyageStore = create<VoyageState>()(
           voyageHistory: [localUpdatedVoyage, ...state.voyageHistory],
         }));
 
+        console.log('✅ [VOYAGE] Voyage ended locally and screen sharing stopped');
         return localUpdatedVoyage;
       } else {
         // Calculate voyage statistics after successful database update
@@ -222,11 +229,16 @@ export const useVoyageStore = create<VoyageState>()(
           voyageHistory: [data, ...state.voyageHistory],
         }));
 
+        console.log('✅ [VOYAGE] Database voyage ended and screen sharing stopped');
         return data;
       }
     } catch (error) {
       console.error('Failed to end voyage:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to end voyage' });
+
+      // Still stop screen sharing even if database update failed
+      ScreenshotService.stopScreenSharing();
+      console.log('⚠️ [VOYAGE] Voyage end failed but screen sharing stopped');
 
       useNotificationStore.getState().showError(
         'Failed to complete your voyage. Please try again.',
@@ -369,6 +381,10 @@ export const useVoyageStore = create<VoyageState>()(
   },
 
   resetVoyageState: () => {
+    // Stop screen sharing when resetting voyage state
+    console.log('🛑 [VOYAGE] Resetting voyage state - stopping screen sharing...');
+    ScreenshotService.stopScreenSharing();
+
     set({
       currentVoyage: null,
       isVoyageActive: false,
@@ -378,5 +394,7 @@ export const useVoyageStore = create<VoyageState>()(
       lastDistractionTime: null,
       error: null,
     });
+
+    console.log('✅ [VOYAGE] Voyage state reset and screen sharing stopped');
   },
 })));
