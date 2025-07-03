@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { SplineScene } from './components/SplineScene';
+import { SplineEventHandler } from './components/SplineEventHandler';
 import { AuthForm } from './components/auth/AuthForm';
 import { LighthouseGoal } from './components/onboarding/LighthouseGoal';
 import { CreateDestination } from './components/onboarding/CreateDestination';
@@ -22,7 +23,6 @@ function App() {
     user,
     lighthouseGoal,
     initialize,
-    debugDistractionFlow,
     isLoading,
     isAuthenticated,
     authMode,
@@ -37,6 +37,7 @@ function App() {
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [completedVoyageId, setCompletedVoyageId] = useState<string | null>(null);
   const [initializationComplete, setInitializationComplete] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Initialize the app
   useEffect(() => {
@@ -53,7 +54,7 @@ function App() {
     if (import.meta.env.DEV) {
       setupDebugTool();
     }
-  }, [debugDistractionFlow]);
+  }, []);
 
   // Handle state transitions after initialization
   useEffect(() => {
@@ -96,20 +97,45 @@ function App() {
     }
   }, [authError, initializationComplete, showError]);
 
+  // 监听模态框状态变化
+  useEffect(() => {
+    const handleModalStateChange = (event: CustomEvent) => {
+      setIsModalOpen(event.detail.isOpen);
+    };
+
+    window.addEventListener('modalStateChange', handleModalStateChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('modalStateChange', handleModalStateChange as EventListener);
+    };
+  }, []);
+
+  const handleSplineEvent = (event: any) => {
+    console.log('Spline event received in App:', event);
+    // You can add custom logic here to handle different types of events
+    // For example, trigger different animations or UI changes based on event.payload
+  };
+
   // Show loading screen during initialization
   if (!initializationComplete || isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <div className="text-white text-xl">
-            {isLoading ? 'Loading...' : 'Initializing MindBoat...'}
-          </div>
-          {authError && (
-            <div className="mt-4 text-red-300 text-sm max-w-md">
-              {authError}
+      <div className="relative h-screen">
+        {/* 3D Scene Background */}
+        <SplineScene isInteractionDisabled={true} />
+        
+        {/* Loading Overlay */}
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+            <div className="text-white text-xl font-playfair">
+              {isLoading ? 'Loading...' : 'Initializing MindBoat...'}
             </div>
-          )}
+            {authError && (
+              <div className="mt-4 text-red-300 text-sm max-w-md">
+                {authError}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -124,8 +150,6 @@ function App() {
   };
 
   const handleLighthouseComplete = () => {
-    // Remove success notification - completing the form is its own reward
-
     // Skip destinations if user already has some, go straight to voyage prep
     if (destinations.length > 0) {
       setAppState('voyage-prep');
@@ -135,7 +159,6 @@ function App() {
   };
 
   const handleDestinationsComplete = () => {
-    // Remove success notification - creating destinations is self-evident
     setAppState('voyage-prep');
   };
 
@@ -147,8 +170,6 @@ function App() {
     try {
       // Start the voyage in the store
       await startVoyage(destination.id, user.id, plannedDuration);
-
-      // Remove verbose success notification - starting voyage is self-evident
 
       // Transition to sailing mode
       setAppState('sailing');
@@ -163,14 +184,9 @@ function App() {
 
   const handleEndVoyage = async () => {
     if (currentVoyage && selectedDestination) {
-      // Capture distraction count before ending voyage (since endVoyage resets store state)
-      const { distractionCount } = useVoyageStore.getState();
-
       try {
         // End the voyage in the store
         const updatedVoyage = await endVoyage();
-
-        // Remove verbose success notification - voyage completion is self-evident
 
         // Set completed voyage data for the completion screen
         if (updatedVoyage) {
@@ -198,7 +214,6 @@ function App() {
 
   const handleBackToPrep = () => {
     setSelectedDestination(null);
-    setCompletedVoyageId(null);
     setAppState('voyage-prep');
   };
 
@@ -210,75 +225,114 @@ function App() {
     setAppState('destinations');
   };
 
+  const handleBackToAuth = () => {
+    setAppState('auth');
+  };
+
+  const renderCurrentState = () => {
+    switch (appState) {
+      case 'auth':
+        return <AuthForm onSuccess={handleAuthSuccess} />;
+      
+      case 'lighthouse':
+        return <LighthouseGoal onComplete={handleLighthouseComplete} />;
+      
+      case 'destinations':
+        return <CreateDestination onComplete={handleDestinationsComplete} />;
+      
+             case 'voyage-prep':
+         return (
+           <VoyagePreparation
+             onStartVoyage={handleStartVoyage}
+             onViewMap={handleViewMap}
+             onManageDestinations={handleManageDestinations}
+           />
+         );
+       
+       case 'sailing':
+         return selectedDestination ? (
+           <SailingMode
+             destination={selectedDestination}
+             onEndVoyage={handleEndVoyage}
+           />
+         ) : null;
+       
+       case 'voyage-complete':
+         return completedVoyageId ? (
+           <VoyageComplete
+             voyageId={completedVoyageId}
+             onContinue={handleVoyageCompleteNext}
+           />
+         ) : null;
+       
+       case 'map':
+         return (
+           <GrandMap
+             onBack={handleBackToPrep}
+           />
+         );
+      
+      default:
+        return null;
+    }
+  };
+
   return (
-    <div className="App">
-      {appState === 'auth' && (
-        <AuthForm onSuccess={handleAuthSuccess} />
-      )}
+    <div className="relative h-screen overflow-hidden">
+      {/* 3D Scene Background - 传递交互禁用状态 */}
+      <SplineScene isInteractionDisabled={isModalOpen || appState !== 'voyage-prep'} />
+      
+      {/* Spline Event Handler - handles real-time events from Spline */}
+      <SplineEventHandler 
+        onEventReceived={handleSplineEvent}
+        onModalStateChange={setIsModalOpen}
+      />
 
-      {appState === 'lighthouse' && (
-        <LighthouseGoal onComplete={handleLighthouseComplete} />
-      )}
+      {/* Subtle gradient overlay for depth */}
+      <div className="fixed inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/20 pointer-events-none z-10"></div>
 
-      {appState === 'destinations' && (
-        <CreateDestination onComplete={handleDestinationsComplete} />
-      )}
+      {/* Main Application Content */}
+      <div className="relative z-20">
+        {renderCurrentState()}
+      </div>
 
-      {appState === 'voyage-prep' && (
-        <VoyagePreparation
-          onStartVoyage={handleStartVoyage}
-          onViewMap={handleViewMap}
-          onManageDestinations={handleManageDestinations}
-        />
-      )}
-
-      {appState === 'sailing' && selectedDestination && (
-        <SailingMode
-          destination={selectedDestination}
-          onEndVoyage={handleEndVoyage}
-        />
-      )}
-
-      {appState === 'voyage-complete' && completedVoyageId && (
-        <VoyageComplete
-          voyageId={completedVoyageId}
-          onContinue={handleVoyageCompleteNext}
-        />
-      )}
-
-      {appState === 'map' && (
-        <GrandMap onBack={handleBackToPrep} />
-      )}
-
-      {/* Global Notification System */}
+      {/* Notification System */}
       <NotificationSystem />
 
-      {/* Sponsors and Hackathon Footer */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm shadow-lg p-3 z-50">
-        <div className="container mx-auto flex flex-wrap justify-center items-center gap-6">
-          <div className="text-sm text-gray-500 font-medium">Powered by:</div>
-          <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
-            <img src="/anthropic.svg" alt="Anthropic Logo" className="h-8" />
-          </a>
-          <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
-            <img src="/11labs.svg" alt="ElevenLabs Logo" className="h-8" />
-          </a>
-          <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
-            <img src="/logo-color.svg" alt="Hackathon Logo" className="h-8" />
-          </a>
-          <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
-            <img src="/logo-color2.svg" alt="Hackathon Logo" className="h-8" />
-          </a>
-          <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
-            <img src="/logo-color3.svg" alt="Hackathon Logo" className="h-8" />
-          </a>
-          <div className="text-xs text-gray-400">
-            <a href="https://bolt.new/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-500 underline">
-              Built with Bolt.new
-            </a>
-          </div>
-        </div>
-      </footer>
+      {/* Manual Test Button - positioned at bottom right */}
+      <div className="fixed bottom-4 right-4 z-30">
+        <button
+          onClick={async () => {
+            try {
+              const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-seagull-webhook`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                },
+                body: JSON.stringify({ numbaer5: 0 })
+              });
+              
+              if (response.ok) {
+                console.log('Test seagull webhook triggered successfully');
+              } else {
+                console.error('Failed to trigger test webhook');
+              }
+            } catch (error) {
+              console.error('Error triggering test webhook:', error);
+            }
+          }}
+          className="px-4 py-2 bg-gradient-to-br from-white/15 via-white/10 to-white/8
+                     hover:from-white/20 hover:via-white/15 hover:to-white/12
+                     text-white rounded-xl transition-all duration-300
+                     border border-white/25 hover:border-white/35
+                     font-inter font-medium text-sm backdrop-blur-md
+                     shadow-[0_4px_16px_rgba(0,0,0,0.1),0_1px_4px_rgba(0,0,0,0.06)]
+                     transform hover:scale-[1.02] active:scale-[0.98]"
+        >
+          Talk to Seagull
+        </button>
+      </div>
     </div>
   );
 }
